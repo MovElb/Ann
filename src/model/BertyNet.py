@@ -5,7 +5,7 @@ from layers import StackedBRNN
 class BertyNet(nn.Module):
     def __init__(self, opt):
         super(BertyNet, self).__init__()
-        # self.use_cuda = opt['use_cuda']
+        self._use_cuda = opt['use_cuda']
 
         self._build_model(opt)
     
@@ -74,4 +74,6 @@ class BertyNet(nn.Module):
 
     def _compute_mask(self, x):
         mask = torch.eq(x, 0)
+        if self._use_cuda:
+            mask = mask.cuda()
         return mask
