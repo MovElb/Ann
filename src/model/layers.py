@@ -2,13 +2,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 def variational_dropout(x, dropout_rate=0, training=False, use_cuda=False):
     """
     x: batch * len * input_size
     """
     if training == False or dropout_rate == 0:
         return x
-    dropout_mask = 1.0 / (1-dropout_rate) * torch.bernoulli(x.data.new_zeros(x.size(0), x.size(2)) + 1)
+    dropout_mask = 1.0 / \
+        (1-dropout_rate) * torch.bernoulli(x.data.new_zeros(x.size(0), x.size(2)) + 1)
     if use_cuda:
         dropout_mask = dropout_mask.cuda()
     return dropout_mask.unsqueeze(1).expand_as(x) * x
@@ -21,7 +23,8 @@ def dropout(x, dropout_rate=0, training=False, dropout_type='variational', use_c
     if dropout_type not in set('variational', 'simple', 'alpha'):
         raise ValueError('Unknown dropout type = {}'.format(dropout_type))
     if dropout_rate > 0:
-        if dropout_type == 'variational' and len(x.size()) == 3: # if x is (batch * len * input_size)
+        # if x is (batch * len * input_size)
+        if dropout_type == 'variational' and len(x.size()) == 3:
             return variational_dropout(x, dropout_rate=dropout_rate, training=training, use_cuda=use_cuda)
         elif dropout_type == 'simple':
             return F.dropout(x, p=dropout_rate, training=training)
@@ -45,8 +48,8 @@ class StackedBRNN(nn.Module):
         for i in range(num_layers):
             input_size = input_size if i == 0 else 2 * hidden_size
             self._rnns.append(rnn_type(input_size, hidden_size,
-                                      num_layers=1,
-                                      bidirectional=True))
+                                       num_layers=1,
+                                       bidirectional=True))
 
     def forward(self, x, x_mask):
         """Can choose to either handle or ignore variable length sequences.
@@ -81,7 +84,7 @@ class StackedBRNN(nn.Module):
             outputs.append(rnn_output)
 
         # Concat hidden layers
-    
+
         if self.concat_layers:
             output = torch.cat(outputs[1:], 2)
         else:
@@ -159,26 +162,28 @@ class StackedBRNN(nn.Module):
         return output
 
 
-class ScaledDotAttention(nn.Module) :
-    def __init__(self, input_size, hidden_size, dropout_rate, use_cuda=True, dropout_type='variational'):
-        super(ScaledDotAttention, self).__init__()
+class FullAttention(nn.Module):
+    def __init__(self, input_size, hidden_size, dropout_rate=0, dropout_type='variational', use_cuda=True):
+        super(FullAttention, self).__init__()
         self.use_cuda = use_cuda
         self.dropout_rate = dropout_rate
         self.dropout_type = dropout_type
         self.input_size = input_size
         self.hidden_size = hidden_size
-        self._projection_queries = nn.Linear(input_size, hidden_size, bias=False)
-        self._projection_keys = nn.Linear(input_size, hidden_size, bias=False)
-        self._scaling = nn.Parameter(torch.ones(1, hidden_size), requires_grad=True)
+        self._projection = nn.Linear(input_size, hidden_size, bias=False)
+        self._scaling = nn.Parameter(torch.ones(
+            1, hidden_size), requires_grad=True)
         nn.init.xavier_normal_(self._projection_queries.weight)
         nn.init.xavier_normal_(self._projection_keys.weight)
 
     def forward(self, queries, keys, values_1, values_1_mask, values_2=None, values_2_mask=None):
-        dropped_queries = dropout(queries, self.dropout_rate, self.training, self.dropout_type, use_cuda=self.use_cuda)
-        dropped_keys = dropout(keys, self.dropout_rate, self.training, self.dropout_type, use_cuda=self.use_cuda)
+        dropped_queries = dropout(
+            queries, self.dropout_rate, self.training, self.dropout_type, use_cuda=self.use_cuda)
+        dropped_keys = dropout(
+            keys, self.dropout_rate, self.training, self.dropout_type, use_cuda=self.use_cuda)
 
-        projected_queries = F.relu(self._projection_queries(dropped_queries))
-        projected_keys = F.relu(self._projection_keys(dropped_keys))
+        projected_queries = F.relu(self._projection(dropped_queries))
+        projected_keys = F.relu(self._projection(dropped_keys))
         scaling_factor = self._scaling.expand_as(projected_keys)
 
         projected_keys = projected_keys * scaling_factor
@@ -195,7 +200,7 @@ class ScaledDotAttention(nn.Module) :
         scores.masked_fill_(v_mask_1, float('-inf'))
         alpha_1 = F.softmax(scores, dim=2)
         output = torch.bmm(alpha_1, values_1)
-        
+
         if values_2 is not None:
             return output, output_2
         else:
