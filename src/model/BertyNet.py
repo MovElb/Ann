@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from layers import StackedBRNN, FullAttention
+from layers import FullAttention, StackedBRNN, Summarize
 
 
 class BertyNet(nn.Module):
@@ -61,6 +61,9 @@ class BertyNet(nn.Module):
         cur_input_size = self_attention_input_size + 2 * RNN_HIDDEN_SIZE
         self._final_info_lstm = StackedBRNN(
             cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
+
+        cur_input_size = 2 * RNN_HIDDEN_SIZE
+        self._question_summarization = Summarize(cur_input_size, dropout_rate=DROPOUT_RATE, use_cuda=self._use_cuda)
 
     def prepare_input(self, batch_data):
         """Converts token ids to embeddings. Injects universal node into the batch data between question and context.
@@ -135,16 +138,17 @@ class BertyNet(nn.Module):
         attention_fully_fused_cat_how = self._self_attention(
             fully_fused_cat_how, fully_fused_cat_how, fully_fused_cat_how, cat_mask)
 
-        fully_fused_cat = torch.cat(
-            [fused_cat_how, attention_fully_fused_cat_how], dim=2)
-        final_representation_cat = self._final_info_lstm(
-            fully_fused_cat, cat_mask)
+        fully_fused_cat = torch.cat([fused_cat_how, attention_fully_fused_cat_how], dim=2)
+        final_representation_cat = self._final_info_lstm(fully_fused_cat, cat_mask)
 
         final_representation_question = final_representation_cat[:, :question_len]
         final_representation_context = final_representation_cat[:, question_len:]
 
         return final_representation_question, final_representation_context
         # don't forget about plausible answer pointer!
+
+    def _decode_forward(self, question_info, context_info, question_mask, context_mask):
+        pass
 
     def forward(self, batch_data):
         prepared_input = self.prepare_input(batch_data)

@@ -168,8 +168,6 @@ class FullAttention(nn.Module):
         self.use_cuda = use_cuda
         self.dropout_rate = dropout_rate
         self.dropout_type = dropout_type
-        self.input_size = input_size
-        self.hidden_size = hidden_size
         self._projection = nn.Linear(input_size, hidden_size, bias=False)
         self._scaling = nn.Parameter(torch.ones(
             1, hidden_size), requires_grad=True)
@@ -207,7 +205,7 @@ class FullAttention(nn.Module):
 
 
 class Summarize(nn.Module):
-    def __init__(self, input_size, dropout_rate, dropout_type='variational', use_cuda=True):
+    def __init__(self, input_size, dropout_rate=0, dropout_type='variational', use_cuda=True):
         super(Summarize, self).__init__()
         self.use_cuda = use_cuda
         self.dropout_rate = dropout_rate
@@ -224,3 +222,33 @@ class Summarize(nn.Module):
         output = torch.bmm(coefs.unsqueeze(1), x).squeeze(1)
 
         return output
+
+
+class PointerNet(nn.Module):
+    def __init__(self, input_size, dropout_rate=0, dropout_type='variational', use_cuda=True):
+        super(PointerNet, self).__init__()
+        self.use_cuda = use_cuda
+        self.dropout_rate = dropout_rate
+        self.dropout_type = dropout_type
+        self._start_linear = nn.Linear(input_size, input_size)
+        self._end_linear = nn.Linear(input_size, input_size)
+        nn.init.xavier_normal_(self._start_linear.weight)
+        nn.init.xavier_normal_(self._end_linear.weight)
+
+    def forward(self, x, y, x_mask):
+        """
+        x : batch * len * h1
+        y : batch * h2
+        x_mask : batch * len
+        """
+        dropped_y = dropout(y, self.dropout_rate, self.training, self.dropout_type, self.use_cuda)
+
+        Wy_s = self._start_linear(dropped_y)
+        xWy_s = x.bmm(Wy_s.unsqueeze(2)).squeeze(2)
+        xWy_s.masked_fill_(x_mask, float('-inf'))
+
+        Wy_e = self._end_linear(dropped_y)
+        xWy_e = x.bmm(Wy_e.unsqueeze(2)).squeeze(2)
+        xWy_e.masked_fill_(x_mask, float('-inf'))
+
+        return xWy_s, xWy_e
