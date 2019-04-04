@@ -144,6 +144,7 @@ class BertyNet(nn.Module):
         final_representation_context = final_representation_cat[:, question_len:]
 
         return final_representation_question, final_representation_context
+        # don't forget about plausible answer pointer!
 
     def forward(self, batch_data):
         prepared_input = self.prepare_input(batch_data)

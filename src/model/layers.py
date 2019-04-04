@@ -173,8 +173,7 @@ class FullAttention(nn.Module):
         self._projection = nn.Linear(input_size, hidden_size, bias=False)
         self._scaling = nn.Parameter(torch.ones(
             1, hidden_size), requires_grad=True)
-        nn.init.xavier_normal_(self._projection_queries.weight)
-        nn.init.xavier_normal_(self._projection_keys.weight)
+        nn.init.xavier_normal_(self._projection.weight)
 
     def forward(self, queries, keys, values_1, values_1_mask, values_2=None, values_2_mask=None):
         dropped_queries = dropout(
@@ -205,3 +204,23 @@ class FullAttention(nn.Module):
             return output, output_2
         else:
             return output
+
+
+class Summarize(nn.Module):
+    def __init__(self, input_size, dropout_rate, dropout_type='variational', use_cuda=True):
+        super(Summarize, self).__init__()
+        self.use_cuda = use_cuda
+        self.dropout_rate = dropout_rate
+        self.dropout_type = dropout_type
+        self.W = nn.Linear(input_size, 1)
+        nn.init.xavier_normal_(self.W.weight)
+
+    def forward(self, x, mask):
+        dropped_x = dropout(x, self.dropout_rate, self.training,
+                            self.dropout_type, use_cuda=self.use_cuda)
+        coefs = self.W(dropped_x).squeeze(2)
+        coefs.masked_fill_(mask, float('-inf'))
+        coefs = F.softmax(coefs, 1)
+        output = torch.bmm(coefs.unsqueeze(1), x).squeeze(1)
+
+        return output
