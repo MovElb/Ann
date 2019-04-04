@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from layers import FullAttention, StackedBRNN, Summarize
+from layers import FullAttention, StackedBRNN, Summarize, PointerNet
 
 
 class BertyNet(nn.Module):
@@ -33,14 +33,11 @@ class BertyNet(nn.Module):
         nn.init.xavier_normal_(self.universal_node)
 
         cur_input_size = TOTAL_DIM
-        self._low_info_lstm = StackedBRNN(
-            cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
+        self._low_info_lstm = StackedBRNN(cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
         cur_input_size = 2 * RNN_HIDDEN_SIZE
-        self._high_info_lstm = StackedBRNN(
-            cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
+        self._high_info_lstm = StackedBRNN(cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
         cur_input_size = 2 * (2 * RNN_HIDDEN_SIZE)
-        self._full_info_lstm = StackedBRNN(
-            cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
+        self._full_info_lstm = StackedBRNN(cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
 
         attention_input_size = 3 * (2 * RNN_HIDDEN_SIZE)
         self._low_attention = FullAttention(
@@ -59,15 +56,21 @@ class BertyNet(nn.Module):
             self_attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self._use_cuda)
 
         cur_input_size = self_attention_input_size + 2 * RNN_HIDDEN_SIZE
-        self._final_info_lstm = StackedBRNN(
-            cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
+        self._final_info_lstm = StackedBRNN(cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
+        self._final_plausible_info_lstm = StackedBRNN(cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
 
         cur_input_size = 2 * RNN_HIDDEN_SIZE
         self._question_summarization = Summarize(cur_input_size, dropout_rate=DROPOUT_RATE, use_cuda=self._use_cuda)
+        self._question_plausible_summarization = Summarize(
+            cur_input_size, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
+
+        self._answer_pointer = PointerNet(cur_input_size)
+        self._plausible_answer_pointer = PointerNet(cur_input_size)
 
     def prepare_input(self, batch_data):
         """Converts token ids to embeddings. Injects universal node into the batch data between question and context.
-
+        Note that we need to increment ys, ye by 1 (since we inserted universal node). But leave unanswerable questions
+        with ys, ye = (0, 0). Maybe we should do that in batch generator ?
         Arguments:
             batch_data....
 
@@ -140,15 +143,24 @@ class BertyNet(nn.Module):
 
         fully_fused_cat = torch.cat([fused_cat_how, attention_fully_fused_cat_how], dim=2)
         final_representation_cat = self._final_info_lstm(fully_fused_cat, cat_mask)
+        final_plaus_representation_cat = self._final_plausible_info_lstm(fully_fused_cat, cat_mask)
 
         final_representation_question = final_representation_cat[:, :question_len]
         final_representation_context = final_representation_cat[:, question_len:]
+        final_plaus_representation_question = final_plaus_representation_cat[:, :question_len]
+        final_plaus_representation_context = final_plaus_representation_cat[:, question_len:]
 
-        return final_representation_question, final_representation_context
-        # don't forget about plausible answer pointer!
+        return final_representation_question, final_representation_context,
+        final_plaus_representation_question, final_plaus_representation_context
 
-    def _decode_forward(self, question_info, context_info, question_mask, context_mask):
-        pass
+    def _decode_forward(
+            self, question_info, context_info, question_plaus_info, context_plaus_info, question_mask, context_mask):
+        question_summarized = self._question_summarization(question_info, question_mask[:, :-1])
+        question_plaus_summarized = self._question_plausible_summarization(question_plaus_info, question_mask[:, :-1])
+
+        logits_s, logits_e = self._answer_pointer(context_info, question_summarized, context_mask)
+        logits_plaus_s, logits_plaus_e = self._plausible_answer_pointer(
+            context_plaus_info, question_plaus_summarized, context_mask)
 
     def forward(self, batch_data):
         prepared_input = self.prepare_input(batch_data)
