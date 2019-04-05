@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from layers import FullAttention, StackedBRNN, Summarize, PointerNet
+from .layers import FullAttention, StackedBRNN, Summarize, PointerNet
 
 
 class BertyNet(nn.Module):
@@ -28,10 +28,11 @@ class BertyNet(nn.Module):
         # TODO : create embedding matrix for glove
         # TODO: get Bert embeddings (not trivial)
 
+        # self._glove_embeddings = nn.Embedding(2200000, GLOVE_FEAT_DIM)
         self._pos_embeddings = nn.Embedding(POS_SIZE, POS_DIM, padding_idx=0)
         self._ner_embeddings = nn.Embedding(NER_SIZE, NER_DIM, padding_idx=0)
         self._universal_node = nn.Parameter(torch.zeros(1, TOTAL_DIM))
-        nn.init.xavier_normal_(self.universal_node)
+        nn.init.xavier_normal_(self._universal_node)
 
         cur_input_size = TOTAL_DIM
         self._low_info_lstm = StackedBRNN(cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
@@ -183,10 +184,23 @@ class BertyNet(nn.Module):
 
         return logits_s, logits_e, logits_plaus_s, logits_plaus_e, logits_answerable
 
-    def forward(self, batch_data):
-        prepared_input = self.prepare_input(batch_data)
-        # ... = self.encode_forward(prepared_input)
-        pass
+    def compute_loss(
+            self, logits_s, logits_e, logits_plaus_s, logits_plaus_e, logits_answerable, start_idx, end_idx,
+            plaus_start_idx, plaus_end_idx, has_answer):
+        loss_answer = F.cross_entropy(logits_s, start_idx) + F.cross_entropy(logits_e, end_idx)
+        loss_plausible_answer = F.cross_entropy(
+            logits_plaus_s, plaus_start_idx) + F.cross_entropy(logits_plaus_e, plaus_end_idx)
+        loss_answer_verifier = F.cross_entropy(logits_answerable, has_answer)
+
+        total_loss = loss_answer + loss_plausible_answer + loss_answer_verifier
+        return total_loss
+
+    def forward(self, prepared_input):
+        encoded_features = self._encode_forward(prepared_input)
+        decoded_logits = self._decode_forward(
+            *encoded_features, prepared_input['question_mask'],
+            prepared_input['context_mask'])
+        return decoded_logits
 
     def _compute_mask(self, x):
         mask = torch.eq(x, 0)
