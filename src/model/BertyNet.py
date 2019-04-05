@@ -1,12 +1,13 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from layers import FullAttention, StackedBRNN, Summarize, PointerNet
 
 
 class BertyNet(nn.Module):
     def __init__(self, opt):
         super(BertyNet, self).__init__()
-        self._use_cuda = opt['use_cuda']
+        self.use_cuda = opt['use_cuda']
 
         self._build_model(opt)
 
@@ -41,11 +42,11 @@ class BertyNet(nn.Module):
 
         attention_input_size = 3 * (2 * RNN_HIDDEN_SIZE)
         self._low_attention = FullAttention(
-            attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self._use_cuda)
+            attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
         self._high_attention = FullAttention(
-            attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self._use_cuda)
+            attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
         self._full_attention = FullAttention(
-            attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self._use_cuda)
+            attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
 
         cur_input_size = 6 * (2 * RNN_HIDDEN_SIZE)
         self._fusion_lstm = StackedBRNN(
@@ -53,19 +54,24 @@ class BertyNet(nn.Module):
 
         self_attention_input_size = 2 * RNN_HIDDEN_SIZE + TOTAL_DIM
         self._self_attention = FullAttention(
-            self_attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self._use_cuda)
+            self_attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
 
         cur_input_size = self_attention_input_size + 2 * RNN_HIDDEN_SIZE
         self._final_info_lstm = StackedBRNN(cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
         self._final_plausible_info_lstm = StackedBRNN(cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
 
         cur_input_size = 2 * RNN_HIDDEN_SIZE
-        self._question_summarization = Summarize(cur_input_size, dropout_rate=DROPOUT_RATE, use_cuda=self._use_cuda)
+        self._question_summarization = Summarize(cur_input_size, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
         self._question_plausible_summarization = Summarize(
+            cur_input_size, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
+        self._question_verifier_summarization = Summarize(
             cur_input_size, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
 
         self._answer_pointer = PointerNet(cur_input_size)
         self._plausible_answer_pointer = PointerNet(cur_input_size)
+
+        cur_input_size = 3 * (2 * RNN_HIDDEN_SIZE)
+        self._answer_verifier = nn.Sequential(nn.Dropout(DROPOUT_RATE), nn.Linear(cur_input_size, 2))
 
     def prepare_input(self, batch_data):
         """Converts token ids to embeddings. Injects universal node into the batch data between question and context.
@@ -162,6 +168,21 @@ class BertyNet(nn.Module):
         logits_plaus_s, logits_plaus_e = self._plausible_answer_pointer(
             context_plaus_info, question_plaus_summarized, context_mask)
 
+        # answer verifier
+        alpha = F.softmax(logits_s, dim=1)
+        beta = F.softmax(logits_e, dim=1)
+
+        verify_question_summarized = self._question_verifier_summarization(question_info, question_mask[:, :-1])
+        context_summarized_start = alpha.unsqueeze(1).bmm(context_info).squeeze(1)
+        context_summarized_end = beta.unsqueeze(1).bmm(context_info).squeeze(1)
+        universal_node_info = context_info[:, 0]
+
+        verifier_input = torch.cat([verify_question_summarized, universal_node_info,
+                                    context_summarized_start, context_summarized_end], dim=1)
+        logits_answerable = self._answer_verifier(verifier_input)
+
+        return logits_s, logits_e, logits_plaus_s, logits_plaus_e, logits_answerable
+
     def forward(self, batch_data):
         prepared_input = self.prepare_input(batch_data)
         # ... = self.encode_forward(prepared_input)
@@ -169,6 +190,6 @@ class BertyNet(nn.Module):
 
     def _compute_mask(self, x):
         mask = torch.eq(x, 0)
-        if self._use_cuda:
+        if self.use_cuda:
             mask = mask.cuda()
         return mask
