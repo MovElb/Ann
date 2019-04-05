@@ -5,30 +5,48 @@ from .layers import FullAttention, StackedBRNN, Summarize, PointerNet
 
 
 class BertyNet(nn.Module):
-    def __init__(self, opt):
+    def __init__(self, opt, glove_embeddings=None):
+        """
+            embeddings {list of lists} -- matrix of Glove embeddings with shape (vocab_len, embedding_dim) or None
+        """
         super(BertyNet, self).__init__()
         self.use_cuda = opt['use_cuda']
+        self.opt = opt
+        self.g_pretr_embeddings = glove_embeddings
+        self._build_model()
 
-        self._build_model(opt)
-
-    def _build_model(self, opt):
-        GLOVE_FEAT_DIM = opt['glove_dim']
-        BERT_FEAT_DIM = opt['bert_dim']
-        POS_DIM = opt['pos_dim']
-        POS_SIZE = opt['pos_size']
-        NER_DIM = opt['ner_dim']
-        NER_SIZE = opt['ner_size']
+    def _build_model(self):
+        GLOVE_FEAT_DIM = self.opt['glove_dim']
+        BERT_FEAT_DIM = self.opt['bert_dim']
+        POS_DIM = self.opt['pos_dim']
+        POS_SIZE = self.opt['pos_size']
+        NER_DIM = self.opt['ner_dim']
+        NER_SIZE = self.opt['ner_size']
         CUSTOM_FEAT_DIM = 4
         TOTAL_DIM = GLOVE_FEAT_DIM + BERT_FEAT_DIM + POS_DIM + NER_DIM + CUSTOM_FEAT_DIM
 
-        RNN_HIDDEN_SIZE = opt['rnn_hidden_size']
-        ATTENTION_HIDDEN_SIZE = opt['attention_hidden_size']
-        DROPOUT_RATE = opt['dropout_rate']
+        RNN_HIDDEN_SIZE = self.opt['rnn_hidden_size']
+        ATTENTION_HIDDEN_SIZE = self.opt['attention_hidden_size']
+        DROPOUT_RATE = self.opt['dropout_rate']
 
-        # TODO : create embedding matrix for glove
         # TODO: get Bert embeddings (not trivial)
 
-        # self._glove_embeddings = nn.Embedding(2200000, GLOVE_FEAT_DIM)
+        if self.g_pretr_embeddings is not None:
+            glove_pretr_embeddings = torch.tensor(self.g_pretr_embeddings)
+            self._glove_embeddings = nn.Embedding(
+                glove_pretr_embeddings.size(0),
+                glove_pretr_embeddings.size(1),
+                padding_idx=0)
+            self._glove_embeddings.weight[2:, :] = glove_pretr_embeddings[2:, :]
+            if self.opt['tune_partial'] > 0:
+                assert self.opt['tune_partial'] + 2 < glove_pretr_embeddings.size(0)
+                glove_fixed_embeddings = glove_pretr_embeddings[self.opt['tune_partial'] + 2:]
+                self.register_buffer('fixed_embeddings', glove_fixed_embeddings)
+                self._glove_fixed_embeddings = glove_fixed_embeddings
+
+        else:
+            self._glove_embeddings = nn.Embedding(self.opt['vocab_size'], GLOVE_FEAT_DIM, padding_idx=0)
+
         self._pos_embeddings = nn.Embedding(POS_SIZE, POS_DIM, padding_idx=0)
         self._ner_embeddings = nn.Embedding(NER_SIZE, NER_DIM, padding_idx=0)
         self._universal_node = nn.Parameter(torch.zeros(1, TOTAL_DIM))
@@ -207,3 +225,10 @@ class BertyNet(nn.Module):
         if self.use_cuda:
             mask = mask.cuda()
         return mask
+
+    def reset_fixed_embeddings(self):
+        # Reset fixed embeddings to original value
+        if self.opt['tune_partial'] > 0:
+            offset = self.opt['tune_partial'] + 2
+            if offset < self._glove_embeddings.weight.size(0):
+                self._glove_embeddings.weight[offset:] = self._glove_fixed_embeddings
