@@ -7,7 +7,7 @@ from .layers import FullAttention, StackedBRNN, Summarize, PointerNet
 class BertyNet(nn.Module):
     def __init__(self, opt, glove_embeddings=None):
         """
-            embeddings {list of lists} -- matrix of Glove embeddings with shape (vocab_len, embedding_dim) or None
+            glove_embeddings {list of lists} -- matrix of Glove embeddings with shape (vocab_len, embedding_dim) or None
         """
         super(BertyNet, self).__init__()
         self.use_cuda = opt['use_cuda']
@@ -175,8 +175,8 @@ class BertyNet(nn.Module):
         final_plaus_representation_question = final_plaus_representation_cat[:, :question_len]
         final_plaus_representation_context = final_plaus_representation_cat[:, question_len:]
 
-        return final_representation_question, final_representation_context,
-        final_plaus_representation_question, final_plaus_representation_context
+        return final_representation_question, final_representation_context, final_plaus_representation_question, \
+            final_plaus_representation_context
 
     def _decode_forward(
             self, question_info, context_info, question_plaus_info, context_plaus_info, question_mask, context_mask):
