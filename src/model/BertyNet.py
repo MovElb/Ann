@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from .layers import FullAttention, StackedBRNN, Summarize, PointerNet
 
 
@@ -92,7 +93,7 @@ class BertyNet(nn.Module):
         cur_input_size = 3 * (2 * RNN_HIDDEN_SIZE)
         self._answer_verifier = nn.Sequential(nn.Dropout(DROPOUT_RATE), nn.Linear(cur_input_size, 2))
 
-    def prepare_input(self, batch_data):
+    def prepare_input(self, batch_data, evaluation=False):
         """Converts token ids to embeddings. Injects universal node into the batch data between question and context.
         Note that we need to increment ys, ye by 1 (since we inserted universal node). But leave unanswerable questions
         with ys, ye = (0, 0). Maybe we should do that in batch generator ?
@@ -176,7 +177,7 @@ class BertyNet(nn.Module):
         final_plaus_representation_context = final_plaus_representation_cat[:, question_len:]
 
         return final_representation_question, final_representation_context, final_plaus_representation_question, \
-            final_plaus_representation_context
+               final_plaus_representation_context
 
     def _decode_forward(
             self, question_info, context_info, question_plaus_info, context_plaus_info, question_mask, context_mask):

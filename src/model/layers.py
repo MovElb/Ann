@@ -7,10 +7,9 @@ def variational_dropout(x, dropout_rate=0, training=False, use_cuda=False):
     """
     x: batch * len * input_size
     """
-    if training == False or dropout_rate == 0:
+    if not training or dropout_rate == 0:
         return x
-    dropout_mask = 1.0 / \
-        (1-dropout_rate) * torch.bernoulli(x.data.new_zeros(x.size(0), x.size(2)) + 1)
+    dropout_mask = 1.0 / (1 - dropout_rate) * torch.bernoulli(x.data.new_zeros(x.size(0), x.size(2)) + 1)
     if use_cuda:
         dropout_mask = dropout_mask.cuda()
     return dropout_mask.unsqueeze(1).expand_as(x) * x
