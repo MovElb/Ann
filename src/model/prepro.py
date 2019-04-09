@@ -41,14 +41,14 @@ def main():
 
     # build vocabulary
     full = train + dev
-    vocab, counter = build_vocab([row[5] for row in full], [row[1] for row in full], wv_vocab, args.sort_all)
+    vocab, counter = build_vocab([row[4] for row in full], [row[0] for row in full], wv_vocab, args.sort_all)
     total = sum(counter.values())
     matched = sum(counter[t] for t in vocab)
     log.info('vocab coverage {1}/{0} | OOV occurrence {2}/{3} ({4:.4f}%)'.format(
         len(counter), len(vocab), (total - matched), total, (total - matched) / total * 100))
-    counter_tag = collections.Counter(w for row in full for w in row[3])
+    counter_tag = collections.Counter(w for row in full for w in row[2])
     vocab_tag = sorted(counter_tag, key=counter_tag.get, reverse=True)
-    counter_ent = collections.Counter(w for row in full for w in row[4])
+    counter_ent = collections.Counter(w for row in full for w in row[3])
     vocab_ent = sorted(counter_ent, key=counter_ent.get, reverse=True)
     w2id = {w: i for i, w in enumerate(vocab)}
     tag2id = {w: i for i, w in enumerate(vocab_tag)}
