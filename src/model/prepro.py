@@ -90,16 +90,13 @@ def main():
         'train': train,
         'dev': dev
     }
-    # context_ids, context_tokens, context_features, tag_ids,
-    # ent_ids, question_ids, question_tokens, context_token_span,
-    # context, question, has_ans,
-    # answer_start, answer_end, p_answer_start, p_answer_end
 
-    # train: id, context_id, context_tokens, context_features, tag_id, ent_id,
-    #        question_id, question_tokens, context, context_token_span,
+    # train: context_id, context_tokens, context_features, tag_id, ent_id,
+    #        question_id, question_tokens, context_token_span, context, question,
     #        has_ans, answer_start, answer_end, plausible_answer_start, plausible_answer_end
-    # dev:   id, context_id, context_tokens, context_features, tag_id, ent_id,
-    #        question_id, question_tokens, context, context_token_span, has_ans, answer
+    # dev:   context_id, context_tokens, context_features, tag_id, ent_id,
+    #        question_id, question_tokens, context_token_span, context, question,
+    #        has_ans, answer
 
     with open('./data.msgpack', 'wb') as f:
         msgpack.dump(result, f)
