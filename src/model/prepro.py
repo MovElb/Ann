@@ -8,7 +8,7 @@ import argparse
 import collections
 import multiprocessing
 from multiprocessing import Pool
-from model.utils import str2bool
+from utils import str2bool
 from tqdm import tqdm
 from functools import partial
 import logging
@@ -159,10 +159,10 @@ def flatten_json(data_file, mode):
                     answer_end = answer_start + len(answer) if has_ans else 0
                     p_answer_start = answers[0]['answer_start']
                     p_answer_end = answer_start + len(answer)
-                    rows.append((id_, context, question, has_ans, answer, answer_start, answer_end, p_answer_start, p_answer_end))
+                    rows.append((context, question, has_ans, answer, answer_start, answer_end, p_answer_start, p_answer_end))
                 else:  # mode == 'dev'
                     answers = [a['text'] for a in answers]
-                    rows.append((id_, context, question, has_ans, answers))
+                    rows.append((context, question, has_ans, answers))
     return rows
 
 def clean_spaces(text):
@@ -182,7 +182,7 @@ def init():
 
 def annotate(row, wv_cased):
     global nlp
-    id_, context, question = row[:3]
+    context, question = row[:2]
     q_doc = nlp(clean_spaces(question))
     c_doc = nlp(clean_spaces(context))
     question_tokens = [normalize_text(w.text) for w in q_doc]
@@ -206,18 +206,18 @@ def annotate(row, wv_cased):
     if not wv_cased:
         context_tokens = context_tokens_lower
         question_tokens = question_tokens_lower
-    return (id_, context_tokens, context_features, context_tags, context_ents,
-            question_tokens, context, context_token_span) + row[3:]
+    return (context_tokens, context_features, context_tags, context_ents,
+            question_tokens, context_token_span, context, question) + row[2:]
 
 def index_answer(row):
-    token_span = row[-7]
+    token_span = row[-9]
     starts, ends = zip(*token_span)
     answer_start, answer_end = row[-4], row[-3]
     p_answer_start, p_answer_end = row[-2], row[-1]
     try:
-        return row[:-3] + (starts.index(answer_start), ends.index(answer_end), starts.index(p_answer_start), ends.index(p_answer_end))
+        return row[:-5] + (starts.index(answer_start), ends.index(answer_end), starts.index(p_answer_start), ends.index(p_answer_end))
     except ValueError:
-        return row[:-3] + (None, None, None, None)
+        return row[:-5] + (None, None, None, None)
 
 def build_vocab(questions, contexts, wv_vocab, sort_all=False):
     """
@@ -239,16 +239,16 @@ def build_vocab(questions, contexts, wv_vocab, sort_all=False):
     return vocab, counter
 
 def to_id(row, w2id, tag2id, ent2id, unk_id=1):
-    context_tokens = row[1] 
-    context_features = row[2]
-    context_tags = row[3]
-    context_ents = row[4]
-    question_tokens = row[5]
+    context_tokens = row[0]
+    context_features = row[1]
+    context_tags = row[2]
+    context_ents = row[3]
+    question_tokens = row[4]
     question_ids = [w2id[w] if w in w2id else unk_id for w in question_tokens]
     context_ids = [w2id[w] if w in w2id else unk_id for w in context_tokens]
     tag_ids = [tag2id[w] for w in context_tags]
     ent_ids = [ent2id[w] for w in context_ents]
-    return (row[0], context_ids, context_tokens, context_features, tag_ids, ent_ids, question_ids, question_tokens) + row[6:]
+    return (context_ids, context_tokens, context_features, tag_ids, ent_ids, question_ids, question_tokens) + row[6:]
 
 if __name__ == '__main__':
     main()
