@@ -45,10 +45,10 @@ class BertyModel:
         prepared_input = self.network.prepare_input(batch)
         logits = self.network(prepared_input)
         loss = self.network.compute_loss(*logits,
-                                         prepared_input['start'],
-                                         prepared_input['end'],
-                                         prepared_input['plaus_start'],
-                                         prepared_input['plaus_end'],
+                                         prepared_input['answer_start'],
+                                         prepared_input['answer_end'],
+                                         prepared_input['plaus_answer_start'],
+                                         prepared_input['plaus_answer_end'],
                                          prepared_input['has_answer'])
         self.averaged_loss.update(loss.item())
 

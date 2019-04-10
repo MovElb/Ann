@@ -1,15 +1,16 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from pytorch_pretrained_bert import BertModel, BertTokenizer
 
 from .layers import FullAttention, StackedBRNN, Summarize, PointerNet
-from pytorch_pretrained_bert import BertModel, BertTokenizer
 
 
 class BertyNet(nn.Module):
     def __init__(self, opt, glove_embeddings=None):
         """
-            glove_embeddings {list of lists} -- matrix of Glove embeddings with shape (vocab_len, embedding_dim) or None
+        Args:
+            glove_embeddings (list of lists): Matrix of Glove embeddings with shape (vocab_len, embedding_dim) or None
         """
         super(BertyNet, self).__init__()
         self.use_cuda = opt['use_cuda']
@@ -31,14 +32,12 @@ class BertyNet(nn.Module):
         ATTENTION_HIDDEN_SIZE = self.opt['attention_hidden_size']
         DROPOUT_RATE = self.opt['dropout_rate']
 
-        # TODO: get Bert embeddings (not trivial)
-
         if self.g_pretr_embeddings is not None:
             glove_pretr_embeddings = torch.tensor(self.g_pretr_embeddings)
             self._glove_embeddings = nn.Embedding(
-                glove_pretr_embeddings.size(0),
-                glove_pretr_embeddings.size(1),
-                padding_idx=0)
+                    glove_pretr_embeddings.size(0),
+                    glove_pretr_embeddings.size(1),
+                    padding_idx=0)
             self._glove_embeddings.weight[2:, :] = glove_pretr_embeddings[2:, :]
             if self.opt['tune_partial'] > 0:
                 assert self.opt['tune_partial'] + 2 < glove_pretr_embeddings.size(0)
@@ -48,6 +47,12 @@ class BertyNet(nn.Module):
 
         else:
             self._glove_embeddings = nn.Embedding(self.opt['vocab_size'], GLOVE_FEAT_DIM, padding_idx=0)
+
+        self.bert_model = BertModel.from_pretrained('bert-base-uncased')
+        if self.use_cuda:
+            self.bert_model.cuda()
+        self.bert_model.eval()
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
         self._pos_embeddings = nn.Embedding(POS_SIZE, POS_DIM, padding_idx=0)
         self._ner_embeddings = nn.Embedding(NER_SIZE, NER_DIM, padding_idx=0)
@@ -63,19 +68,19 @@ class BertyNet(nn.Module):
 
         attention_input_size = 3 * (2 * RNN_HIDDEN_SIZE)
         self._low_attention = FullAttention(
-            attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
+                attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
         self._high_attention = FullAttention(
-            attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
+                attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
         self._full_attention = FullAttention(
-            attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
+                attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
 
         cur_input_size = 6 * (2 * RNN_HIDDEN_SIZE)
         self._fusion_lstm = StackedBRNN(
-            cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
+                cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
 
         self_attention_input_size = 2 * RNN_HIDDEN_SIZE + TOTAL_DIM
         self._self_attention = FullAttention(
-            self_attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
+                self_attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
 
         cur_input_size = self_attention_input_size + 2 * RNN_HIDDEN_SIZE
         self._final_info_lstm = StackedBRNN(cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
@@ -84,9 +89,9 @@ class BertyNet(nn.Module):
         cur_input_size = 2 * RNN_HIDDEN_SIZE
         self._question_summarization = Summarize(cur_input_size, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
         self._question_plausible_summarization = Summarize(
-            cur_input_size, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
+                cur_input_size, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
         self._question_verifier_summarization = Summarize(
-            cur_input_size, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
+                cur_input_size, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
 
         self._answer_pointer = PointerNet(cur_input_size)
         self._plausible_answer_pointer = PointerNet(cur_input_size)
@@ -94,35 +99,172 @@ class BertyNet(nn.Module):
         cur_input_size = 3 * (2 * RNN_HIDDEN_SIZE)
         self._answer_verifier = nn.Sequential(nn.Dropout(DROPOUT_RATE), nn.Linear(cur_input_size, 2))
 
-        self.bert_model = BertModel.from_pretrained('bert-base-uncased')
-        if self.use_cuda:
-            self.bert_model.cuda()
-        self.bert_model.eval()
-        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-
     def prepare_input(self, batch_data, evaluation=False):
-        """Converts token ids to embeddings. Injects universal node into the batch data between question and context.
-        Note that we need to increment ys, ye by 1 (since we inserted universal node). But leave unanswerable questions
-        with ys, ye = (0, 0). Maybe we should do that in batch generator ?
-        Arguments:
-            batch_data....
+        """Converts token ids to glove, bert, pos, ner embeddings and concatenates all features.
+        Injects universal node (trainable parameter) into the batch data between question and context.
+        Increases all answer spans which corresponds to answerable examples in order to compute correct loss.
+
+        Args:
+            batch_data (list of lists): Batch yielded by BatchGen object. See BatchGen for details.
+            evaluation (bool): Flag indicating current mode.
 
         Returns:
-            dict of Tensor with following values:
-                ['cat_input'] - Tensor with size (B * L * output_dim), where B - batch size,
-                    L - maximum (probably, padded) length of "question|universal_node|context" sequence,
+            dict containing:
+                ['cat_input'] - Tensor, (B * L * output_dim), B - batch size,
+                    L - maximum (probably, padded) length of <question|uni_node|context> sequence,
                     output_dim - dimension of all concatenated features per token.
-                ['question_mask']
-                ['context_mask
-                ['cat_mask']
-                ['question_len']
-                ['context_len']
+                ['cat_mask'] - Tensor, (B * L), mask for all RNN layers with all zeros for
+                    <question|uni_node> part, and correct mask for <context> part.
+                ['question_mask'] - Tensor, (B * (question_len + 1)), mask for <question|uni_node> part.
+                ['context_mask - Tensor, (B * (1 + context_len)), mask for <uni_node|context> part.
+                ['question_len'] - int, maximum question len for this batch (without uni_node).
+                ['answer_start] - Tensor, (B,) or None when evaluation.
+                ['answer_end'] - Tensor, (B,) or None when evaluation.
+                ['plaus_answer_start'] - Tensor, (B,) or None when evaluation.
+                ['plaus_answer_end'] - Tensor, (B,) or None when evaluation.
+                ['has_ans'] - Tensor, (B,) or None when evaluation.
         """
+        bert_question_embeddings, bert_context_embeddings, new_question_lengths, \
+        new_context_lengths, mask_good_ex = self._get_bert_embeddings_for_batch(batch_data, evaluation=evaluation)
 
-        # TODO: extract essential data, concatenate "question|UNODE|context"
-        return {}
+        new_question_maxlen = max(new_question_lengths)
+        new_context_maxlen = max(new_context_lengths)
+        new_batch_size = sum(mask_good_ex)
 
-    def _get_bert_embeddings(self, question_tokens, context_tokens, answer_end_idx):
+        assert len(bert_question_embeddings) == new_batch_size
+
+        question_glove_ids = torch.zeros(new_batch_size, new_question_maxlen, dtype=torch.long)
+        context_glove_ids = torch.zeros(new_batch_size, new_context_maxlen, dtype=torch.long)
+
+        bert_dim = bert_question_embeddings[0].size(1)
+        bert_question_fixed = torch.zeros(new_batch_size, new_question_maxlen, bert_dim)
+        bert_context_fixed = torch.zeros(new_batch_size, new_context_maxlen, bert_dim)
+
+        question_pos_ids = torch.zeros(new_batch_size, new_question_maxlen, dtype=torch.long)
+        context_pos_ids = torch.zeros(new_batch_size, new_context_maxlen, dtype=torch.long)
+
+        question_ner_ids = torch.zeros(new_batch_size, new_question_maxlen, dtype=torch.long)
+        context_ner_ids = torch.zeros(new_batch_size, new_context_maxlen, dtype=torch.long)
+
+        features_len = len(batch_data[2][0][0])
+        question_features = torch.zeros(new_batch_size, new_question_maxlen, features_len)
+        context_features = torch.zeros(new_batch_size, new_context_maxlen, features_len)
+
+        idx = 0
+        for i in range(len(mask_good_ex)):
+            if mask_good_ex[i]:
+                new_question_ids = torch.tensor(batch_data[5][i], dtype=torch.long)
+                new_question_pos_ids = torch.tensor(batch_data[8][i], dtype=torch.long)
+                new_question_ner_ids = torch.tensor(batch_data[9][i], dtype=torch.long)
+                new_question_features = torch.tensor(batch_data[7][i])
+                new_context_ids = torch.tensor(batch_data[0][i], dtype=torch.long)
+                new_context_pos_ids = torch.tensor(batch_data[3][i], dtype=torch.long)
+                new_context_ner_ids = torch.tensor(batch_data[4][i], dtype=torch.long)
+                new_context_features = torch.tensor(batch_data[2][i])
+
+                new_question_ids = new_question_ids[:new_question_lengths[idx]]
+                new_question_pos_ids = new_question_pos_ids[:new_question_lengths[idx]]
+                new_question_ner_ids = new_question_ner_ids[:new_question_lengths[idx]]
+                new_question_features = new_question_features[:new_question_lengths[idx]]
+                new_context_ids = new_context_ids[:new_context_lengths[idx]]
+                new_context_pos_ids = new_context_pos_ids[:new_context_lengths[idx]]
+                new_context_ner_ids = new_context_ner_ids[:new_context_lengths[idx]]
+                new_context_features = new_context_features[:new_context_lengths[idx]]
+
+                question_glove_ids[idx, new_question_maxlen - new_question_lengths[idx]:] = new_question_ids
+                bert_question_fixed[idx, new_question_maxlen - new_question_lengths[idx]:] = bert_question_embeddings[
+                    idx]
+                question_pos_ids[idx, new_question_maxlen - new_question_lengths[idx]:] = new_question_pos_ids
+                question_ner_ids[idx, new_question_maxlen - new_question_lengths[idx]:] = new_question_ner_ids
+                question_features[idx, new_question_maxlen - new_question_lengths[idx]:] = new_question_features
+                context_glove_ids[idx, :new_context_lengths[idx]] = new_context_ids
+                bert_context_fixed[idx, :new_context_lengths[idx]] = bert_context_embeddings[idx]
+                context_pos_ids[idx, :new_context_lengths[idx]] = new_context_pos_ids
+                context_ner_ids[idx, :new_context_lengths[idx]] = new_context_ner_ids
+                context_features[idx, :new_context_lengths[idx]] = new_context_features
+
+                idx += 1
+
+        node_mask = torch.zeros(new_batch_size, 1, dtype=torch.uint8)
+        if self.use_cuda:
+            node_mask = node_mask.cuda()
+
+        question_mask = self._compute_mask(question_glove_ids)
+        question_mask = torch.cat([question_mask, node_mask], dim=1)
+
+        context_mask = self._compute_mask(context_glove_ids)
+        context_mask = torch.cat([node_mask, context_mask], dim=1)
+
+        cat_mask = torch.cat(
+                [torch.zeros(question_mask.size(0), question_mask.size(1) - 1, dtype=torch.uint8), context_mask], dim=1)
+
+        question_glove_emb = self._glove_embeddings(question_glove_ids)
+        question_pos_emb = self._pos_embeddings(question_pos_ids)
+        question_ner_emb = self._ner_embeddings(question_ner_ids)
+        context_glove_emb = self._glove_embeddings(context_glove_ids)
+        context_pos_emb = self._pos_embeddings(context_pos_ids)
+        context_ner_emb = self._ner_embeddings(context_ner_ids)
+
+        u_node = self._universal_node.repeat(new_batch_size, 1, 1)
+
+        cat_question = torch.cat(
+                [question_glove_emb, bert_question_fixed, question_pos_emb, question_ner_emb, question_features], dim=2)
+        cat_context = torch.cat(
+                [context_glove_emb, bert_context_fixed, context_pos_emb, context_ner_emb, context_features], dim=2)
+        cat_input = torch.cat([cat_question, u_node, cat_context], dim=1)
+
+        answer_start, answer_end, plaus_answer_start, plaus_answer_end, has_answer = None, None, None, None, None
+        if not evaluation:
+            selection_mask = torch.tensor(mask_good_ex, dtype=torch.uint8)
+            answer_start = torch.tensor(batch_data[14], dtype=torch.long)
+            answer_end = torch.tensor(batch_data[15], dtype=torch.long)
+            plaus_answer_start = torch.tensor(batch_data[16], dtype=torch.long)
+            plaus_answer_end = torch.tensor(batch_data[17], dtype=torch.long)
+            has_answer = torch.tensor(batch_data[13], dtype=torch.long)
+
+            answer_start = answer_start.masked_select(selection_mask)
+            answer_end = answer_end.masked_select(selection_mask)
+            plaus_answer_start = plaus_answer_start.masked_select(selection_mask)
+            plaus_answer_end = plaus_answer_end.masked_select(selection_mask)
+            has_answer = has_answer.masked_select(selection_mask)
+
+            # fix answer spans in order to consider universal_node at 0 position, so that loss is correctly computed
+            has_answer_mask = has_answer.to(torch.uint8)
+            has_answer_ind = torch.arange(0, new_batch_size)
+            has_answer_ind = has_answer_ind.masked_select(has_answer_mask)
+
+            answer_start[has_answer_ind] += 1
+            answer_end[has_answer_ind] += 1
+            plaus_answer_start[has_answer_ind] += 1
+            plaus_answer_end[has_answer_ind] += 1
+
+        if self.use_cuda:
+            cat_input = cat_input.cuda()
+            cat_mask = cat_mask.cuda()
+            question_mask = question_mask.cuda()
+            context_mask = context_mask.cuda()
+
+            if not evaluation:
+                answer_start = answer_start.cuda()
+                answer_end = answer_end.cuda()
+                plaus_answer_start = plaus_answer_start.cuda()
+                plaus_answer_end = plaus_answer_end.cuda()
+                has_answer = has_answer.cuda()
+
+        return {
+            'cat_input': cat_input,
+            'cat_mask': cat_mask,
+            'question_mask': question_mask,
+            'context_mask': context_mask,
+            'question_len': new_question_maxlen,
+            'answer_start': answer_start,
+            'answer_end': answer_end,
+            'plaus_answer_start': plaus_answer_start,
+            'plaus_answer_end': plaus_answer_end,
+            'has_answer': has_answer
+        }
+
+    def _get_bert_embeddings(self, question_tokens, context_tokens, answer_end_idx=None):
         MAX_SEQ_LEN = 512
         CLS_IND = self.tokenizer.convert_tokens_to_ids(['[CLS]'])[0]
         SEP_IND = self.tokenizer.convert_tokens_to_ids(['[SEP]'])[0]
@@ -138,7 +280,7 @@ class BertyNet(nn.Module):
             return indexed_wp_tokens, orig_to_tok_map
 
         def truncate_sequence(seq_tokens, mapping, desired_len):
-            while (len(seq_tokens) > desired_len):
+            while len(seq_tokens) > desired_len:
                 seq_tokens.pop()
                 if mapping[-1] >= len(seq_tokens):
                     mapping.pop()
@@ -163,7 +305,7 @@ class BertyNet(nn.Module):
             question_bert_embeddings = question_bert_embeddings[question_mapping]
 
             context_bert_embeddings = sum_last_four_layers[len(question_wp_tokens) + 2: -1]
-            context_bert_embeddings = sum_last_four_layers[context_mapping]
+            context_bert_embeddings = context_bert_embeddings[context_mapping]
 
             return question_bert_embeddings, context_bert_embeddings
 
@@ -196,7 +338,7 @@ class BertyNet(nn.Module):
                                                                   question_mapping, context_mapping)
         else:
             truncate_sequence(context_wp_tokens, context_mapping, MAX_SEQ_LEN - 2)
-            if answer_end_idx >= len(context_mapping):
+            if answer_end_idx is not None and answer_end_idx >= len(context_mapping):
                 return None, None
             truncate_sequence(question_wp_tokens, question_mapping, MAX_SEQ_LEN - 2)
 
@@ -205,53 +347,54 @@ class BertyNet(nn.Module):
 
         return question_embeddings, context_embeddings
 
-    def _get_bert_embeddings(self, batch_data):
-        BERT_HID_SIZE = 768
+    def _get_bert_embeddings_for_batch(self, batch_data, evaluation=False):
+        # BERT_HID_SIZE = 768
 
-        max_question_len = batch_data['question_len']
-        max_context_len = batch_data['context_len']
-        batch_size = len(batch_data['question_tokens'])
+        # max_context_len = batch_data[-2]
+        # max_question_len = batch_data[-1]
+        batch_size = len(batch_data[0])
 
         batch_question_embeddings = []
         batch_context_embeddings = []
-        leaved_example_ids = []
+        mask_good_ex = []
         new_question_lengths = []
         new_context_lengths = []
 
         for i in range(batch_size):
-            question = batch_data['question_tokens'][i]
-            context = batch_data['context_tokens'][i]
-            answer_end_idx = batch_data['answer_end'][i]
+            question = batch_data[6][i]
+            context = batch_data[1][i]
+            answer_end_idx = max(batch_data[15][i], batch_data[17][i]) if not evaluation else None
 
             q_embeddings, c_embeddings = self._get_bert_embeddings(question, context, answer_end_idx)
 
             if q_embeddings is None:
+                mask_good_ex.append(0)
                 continue
 
             new_q_len = q_embeddings.size(0)
             new_c_len = c_embeddings.size(0)
             new_question_lengths.append(new_q_len)
             new_context_lengths.append(new_c_len)
-            leaved_example_ids.append(i)
+            mask_good_ex.append(1)
 
-            q_padded_embeddings = torch.zeros(max_question_len, BERT_HID_SIZE)
-            c_padded_embeddings = torch.zeros(max_context_len, BERT_HID_SIZE)
+            # q_padded_embeddings = torch.zeros(max_question_len, BERT_HID_SIZE)
+            # c_padded_embeddings = torch.zeros(max_context_len, BERT_HID_SIZE)
+            #
+            # if self.use_cuda:
+            #     q_padded_embeddings = q_padded_embeddings.cuda()
+            #     c_padded_embeddings = c_padded_embeddings.cuda()
+            #
+            # q_padded_embeddings[max_question_len - new_q_len:] = q_embeddings
+            # c_padded_embeddings[:new_c_len] = c_embeddings
 
-            if self.use_cuda:
-                q_padded_embeddings = q_padded_embeddings.cuda()
-                c_padded_embeddings = c_padded_embeddings.cuda()
+            batch_question_embeddings.append(q_embeddings)
+            batch_context_embeddings.append(c_embeddings)
 
-            q_padded_embeddings[max_question_len - new_q_len:] = q_embeddings
-            c_padded_embeddings[:new_c_len] = c_embeddings
-
-            batch_question_embeddings.append(q_padded_embeddings.unsqueeze(0))
-            batch_context_embeddings.append(c_padded_embeddings.unsqueeze(0))
-
-        batch_question_embeddings = torch.cat(batch_question_embeddings, dim=0)
-        batch_context_embeddings = torch.cat(batch_context_embeddings, dim=0)
+        # batch_question_embeddings = torch.cat(batch_question_embeddings, dim=0)
+        # batch_context_embeddings = torch.cat(batch_context_embeddings, dim=0)
 
         return batch_question_embeddings, batch_context_embeddings, new_question_lengths, new_context_lengths, \
-               leaved_example_ids
+               mask_good_ex
 
     def _encode_forward(self, prepared_input):
         cat_input = prepared_input['cat_input']
@@ -267,7 +410,7 @@ class BertyNet(nn.Module):
         full_info = self._full_info_lstm(lh_cat_info, cat_mask)
 
         deep_cat_how = torch.cat(
-            [low_level_info, high_level_info, full_info], dim=2)
+                [low_level_info, high_level_info, full_info], dim=2)
 
         deep_question_how = deep_cat_how[:question_len + 1]
         low_question_info = low_level_info[:question_len + 1]
@@ -280,11 +423,11 @@ class BertyNet(nn.Module):
         full_context_info = full_info[question_len:]
 
         low_attention_context, low_attention_question = self._low_attention(
-            deep_context_how, deep_question_how, low_question_info, question_mask, low_context_info, context_mask)
+                deep_context_how, deep_question_how, low_question_info, question_mask, low_context_info, context_mask)
         high_attention_context, high_attention_question = self._high_attention(
-            deep_context_how, deep_question_how, high_question_info, question_mask, high_context_info, context_mask)
+                deep_context_how, deep_question_how, high_question_info, question_mask, high_context_info, context_mask)
         full_attention_context, full_attention_question = self._high_attention(
-            deep_context_how, deep_question_how, full_question_info, question_mask, full_context_info, context_mask)
+                deep_context_how, deep_question_how, full_question_info, question_mask, full_context_info, context_mask)
 
         # sum up two attention representations for universal node
         low_attention_context[:, 0] += low_attention_question[:, -1]
@@ -292,18 +435,18 @@ class BertyNet(nn.Module):
         full_attention_context[:, 0] += full_attention_question[:, -1]
 
         attention_question_how = torch.cat(
-            [low_attention_question, high_attention_question, full_attention_question], dim=2)
+                [low_attention_question, high_attention_question, full_attention_question], dim=2)
         attention_context_how = torch.cat(
-            [low_attention_context, high_attention_context, full_attention_context], dim=2)
+                [low_attention_context, high_attention_context, full_attention_context], dim=2)
         attention_cat_how = torch.cat(
-            [attention_question_how[:, :-1], attention_context_how], dim=1)
+                [attention_question_how[:, :-1], attention_context_how], dim=1)
 
         total_cat_how = torch.cat([deep_cat_how, attention_cat_how], dim=2)
         fused_cat_how = self._fusion_lstm(total_cat_how, cat_mask)
 
         fully_fused_cat_how = torch.cat([cat_input, fused_cat_how], dim=2)
         attention_fully_fused_cat_how = self._self_attention(
-            fully_fused_cat_how, fully_fused_cat_how, fully_fused_cat_how, cat_mask)
+                fully_fused_cat_how, fully_fused_cat_how, fully_fused_cat_how, cat_mask)
 
         fully_fused_cat = torch.cat([fused_cat_how, attention_fully_fused_cat_how], dim=2)
         final_representation_cat = self._final_info_lstm(fully_fused_cat, cat_mask)
@@ -324,7 +467,7 @@ class BertyNet(nn.Module):
 
         logits_s, logits_e = self._answer_pointer(context_info, question_summarized, context_mask)
         logits_plaus_s, logits_plaus_e = self._plausible_answer_pointer(
-            context_plaus_info, question_plaus_summarized, context_mask)
+                context_plaus_info, question_plaus_summarized, context_mask)
 
         # answer verifier
         alpha = F.softmax(logits_s, dim=1)
@@ -346,7 +489,7 @@ class BertyNet(nn.Module):
             plaus_start_idx, plaus_end_idx, has_answer):
         loss_answer = F.cross_entropy(logits_s, start_idx) + F.cross_entropy(logits_e, end_idx)
         loss_plausible_answer = F.cross_entropy(
-            logits_plaus_s, plaus_start_idx) + F.cross_entropy(logits_plaus_e, plaus_end_idx)
+                logits_plaus_s, plaus_start_idx) + F.cross_entropy(logits_plaus_e, plaus_end_idx)
         loss_answer_verifier = F.cross_entropy(logits_answerable, has_answer)
 
         total_loss = loss_answer + loss_plausible_answer + loss_answer_verifier
@@ -355,8 +498,8 @@ class BertyNet(nn.Module):
     def forward(self, prepared_input):
         encoded_features = self._encode_forward(prepared_input)
         decoded_logits = self._decode_forward(
-            *encoded_features, prepared_input['question_mask'],
-            prepared_input['context_mask'])
+                *encoded_features, prepared_input['question_mask'],
+                prepared_input['context_mask'])
         return decoded_logits
 
     def _compute_mask(self, x):
