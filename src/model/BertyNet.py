@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .layers import FullAttention, StackedBRNN, Summarize, PointerNet
+from pytorch_pretrained_bert import BertModel, BertTokenizer
 
 
 class BertyNet(nn.Module):
@@ -93,6 +94,12 @@ class BertyNet(nn.Module):
         cur_input_size = 3 * (2 * RNN_HIDDEN_SIZE)
         self._answer_verifier = nn.Sequential(nn.Dropout(DROPOUT_RATE), nn.Linear(cur_input_size, 2))
 
+        self.bert_model = BertModel.from_pretrained('bert-base-uncased')
+        if self.use_cuda:
+            self.bert_model.cuda()
+        self.bert_model.eval()
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
     def prepare_input(self, batch_data, evaluation=False):
         """Converts token ids to embeddings. Injects universal node into the batch data between question and context.
         Note that we need to increment ys, ye by 1 (since we inserted universal node). But leave unanswerable questions
@@ -114,6 +121,137 @@ class BertyNet(nn.Module):
 
         # TODO: extract essential data, concatenate "question|UNODE|context"
         return {}
+
+    def _get_bert_embeddings(self, question_tokens, context_tokens, answer_end_idx):
+        MAX_SEQ_LEN = 512
+        CLS_IND = self.tokenizer.convert_tokens_to_ids(['[CLS]'])[0]
+        SEP_IND = self.tokenizer.convert_tokens_to_ids(['[SEP]'])[0]
+
+        def get_wordpiece_tokenization(tokens):
+            wp_tokens = []
+            orig_to_tok_map = []
+            for token in tokens:
+                if token not in ['[CLS]', '[SEP]']:
+                    orig_to_tok_map.append(len(wp_tokens))
+                wp_tokens.extend(self.tokenizer.tokenize(token))
+            indexed_wp_tokens = self.tokenizer.convert_tokens_to_ids(wp_tokens)
+            return indexed_wp_tokens, orig_to_tok_map
+
+        def truncate_sequence(seq_tokens, mapping, desired_len):
+            while (len(seq_tokens) > desired_len):
+                seq_tokens.pop()
+                if mapping[-1] >= len(seq_tokens):
+                    mapping.pop()
+
+        def embed_joint(question_wp_tokens, context_wp_tokens, question_mapping, context_mapping):
+            cat_tokens = [CLS_IND] + question_wp_tokens + [SEP_IND] + context_wp_tokens + [SEP_IND]
+            segment_mask = torch.ones(len(cat_tokens), dtype=torch.long)
+            segment_mask[:len(question_wp_tokens) + 2] = 0
+
+            tokens_tensor = torch.tensor([cat_tokens])
+            segments_tensor = segment_mask.unsqueeze(0)
+
+            if self.use_cuda:
+                tokens_tensor = tokens_tensor.cuda()
+                segments_tensor = segments_tensor.cuda()
+
+            with torch.no_grad():
+                encoded_layers, _ = self.bert_model(tokens_tensor, segments_tensor)
+
+            sum_last_four_layers = torch.sum(torch.cat(encoded_layers[-4:], dim=0), dim=0)
+            question_bert_embeddings = sum_last_four_layers[1: len(question_wp_tokens) + 1]
+            question_bert_embeddings = question_bert_embeddings[question_mapping]
+
+            context_bert_embeddings = sum_last_four_layers[len(question_wp_tokens) + 2: -1]
+            context_bert_embeddings = sum_last_four_layers[context_mapping]
+
+            return question_bert_embeddings, context_bert_embeddings
+
+        def embed_separately(seq_tokens, seq_mapping):
+            cat_tokens = [CLS_IND] + seq_tokens + [SEP_IND]
+            segment_mask = torch.zeros(len(cat_tokens), dtype=torch.long)
+
+            tokens_tensor = torch.tensor([cat_tokens])
+            segments_tensor = segment_mask.unsqueeze(0)
+
+            if self.use_cuda:
+                tokens_tensor = tokens_tensor.cuda()
+                segments_tensor = segments_tensor.cuda()
+
+            with torch.no_grad():
+                encoded_layers, _ = self.bert_model(tokens_tensor, segments_tensor)
+
+            sum_last_four_layers = torch.sum(torch.cat(encoded_layers[-4:], dim=0), dim=0)
+            seq_embeddings = sum_last_four_layers[1: -1]
+            seq_embeddings = seq_embeddings[seq_mapping]
+
+            return seq_embeddings
+
+        question_wp_tokens, question_mapping = get_wordpiece_tokenization(question_tokens)
+        context_wp_tokens, context_mapping = get_wordpiece_tokenization(context_tokens)
+
+        cat_len = len(question_wp_tokens) + len(context_wp_tokens)
+        if cat_len + 3 <= MAX_SEQ_LEN:
+            question_embeddings, context_embeddings = embed_joint(question_wp_tokens, context_wp_tokens,
+                                                                  question_mapping, context_mapping)
+        else:
+            truncate_sequence(context_wp_tokens, context_mapping, MAX_SEQ_LEN - 2)
+            if answer_end_idx >= len(context_mapping):
+                return None, None
+            truncate_sequence(question_wp_tokens, question_mapping, MAX_SEQ_LEN - 2)
+
+            question_embeddings = embed_separately(question_wp_tokens, question_mapping)
+            context_embeddings = embed_separately(context_wp_tokens, context_mapping)
+
+        return question_embeddings, context_embeddings
+
+    def _get_bert_embeddings(self, batch_data):
+        BERT_HID_SIZE = 768
+
+        max_question_len = batch_data['question_len']
+        max_context_len = batch_data['context_len']
+        batch_size = len(batch_data['question_tokens'])
+
+        batch_question_embeddings = []
+        batch_context_embeddings = []
+        leaved_example_ids = []
+        new_question_lengths = []
+        new_context_lengths = []
+
+        for i in range(batch_size):
+            question = batch_data['question_tokens'][i]
+            context = batch_data['context_tokens'][i]
+            answer_end_idx = batch_data['answer_end'][i]
+
+            q_embeddings, c_embeddings = self._get_bert_embeddings(question, context, answer_end_idx)
+
+            if q_embeddings is None:
+                continue
+
+            new_q_len = q_embeddings.size(0)
+            new_c_len = c_embeddings.size(0)
+            new_question_lengths.append(new_q_len)
+            new_context_lengths.append(new_c_len)
+            leaved_example_ids.append(i)
+
+            q_padded_embeddings = torch.zeros(max_question_len, BERT_HID_SIZE)
+            c_padded_embeddings = torch.zeros(max_context_len, BERT_HID_SIZE)
+
+            if self.use_cuda:
+                q_padded_embeddings = q_padded_embeddings.cuda()
+                c_padded_embeddings = c_padded_embeddings.cuda()
+
+            q_padded_embeddings[max_question_len - new_q_len:] = q_embeddings
+            c_padded_embeddings[:new_c_len] = c_embeddings
+
+            batch_question_embeddings.append(q_padded_embeddings.unsqueeze(0))
+            batch_context_embeddings.append(c_padded_embeddings.unsqueeze(0))
+
+        batch_question_embeddings = torch.cat(batch_question_embeddings, dim=0)
+        batch_context_embeddings = torch.cat(batch_context_embeddings, dim=0)
+
+        return batch_question_embeddings, batch_context_embeddings, new_question_lengths, new_context_lengths, \
+               leaved_example_ids
 
     def _encode_forward(self, prepared_input):
         cat_input = prepared_input['cat_input']
