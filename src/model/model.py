@@ -74,6 +74,7 @@ class BertyModel:
         scores_answerable[:, 0] += thresh_fix
         scores_answerable[:, 1] -= thresh_fix
         is_answerable = torch.argmax(scores_answerable, dim=1)
+        is_answerable = is_answerable.tolist()
 
         scores_s = F.softmax(logits_s, dim=1)[:, 1:]
         scores_e = F.softmax(logits_e, dim=1)[:, 1:]
