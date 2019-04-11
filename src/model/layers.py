@@ -5,7 +5,8 @@ import torch.nn.functional as F
 
 def variational_dropout(x, dropout_rate=0, training=False, use_cuda=False):
     """
-    x: batch * len * input_size
+    Args:
+        x (Tensor): batch * len * input_size
     """
     if not training or dropout_rate == 0:
         return x
@@ -17,7 +18,8 @@ def variational_dropout(x, dropout_rate=0, training=False, use_cuda=False):
 
 def dropout(x, dropout_rate=0, training=False, dropout_type='variational', use_cuda=False):
     """
-    x: (batch * len * input_size) or (any other shape)
+    Args:
+        x (Tensor): (batch * len * input_size) or (any other shape)
     """
     if dropout_type not in set('variational', 'simple', 'alpha'):
         raise ValueError('Unknown dropout type = {}'.format(dropout_type))
@@ -169,14 +171,14 @@ class FullAttention(nn.Module):
         self.dropout_type = dropout_type
         self._projection = nn.Linear(input_size, hidden_size, bias=False)
         self._scaling = nn.Parameter(torch.ones(
-            1, hidden_size), requires_grad=True)
+                1, hidden_size), requires_grad=True)
         nn.init.xavier_normal_(self._projection.weight)
 
     def forward(self, queries, keys, values_1, values_1_mask, values_2=None, values_2_mask=None):
         dropped_queries = dropout(
-            queries, self.dropout_rate, self.training, self.dropout_type, use_cuda=self.use_cuda)
+                queries, self.dropout_rate, self.training, self.dropout_type, use_cuda=self.use_cuda)
         dropped_keys = dropout(
-            keys, self.dropout_rate, self.training, self.dropout_type, use_cuda=self.use_cuda)
+                keys, self.dropout_rate, self.training, self.dropout_type, use_cuda=self.use_cuda)
 
         projected_queries = F.relu(self._projection(dropped_queries))
         projected_keys = F.relu(self._projection(dropped_keys))

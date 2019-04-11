@@ -348,10 +348,6 @@ class BertyNet(nn.Module):
         return question_embeddings, context_embeddings
 
     def _get_bert_embeddings_for_batch(self, batch_data, evaluation=False):
-        # BERT_HID_SIZE = 768
-
-        # max_context_len = batch_data[-2]
-        # max_question_len = batch_data[-1]
         batch_size = len(batch_data[0])
 
         batch_question_embeddings = []
@@ -377,21 +373,8 @@ class BertyNet(nn.Module):
             new_context_lengths.append(new_c_len)
             mask_good_ex.append(1)
 
-            # q_padded_embeddings = torch.zeros(max_question_len, BERT_HID_SIZE)
-            # c_padded_embeddings = torch.zeros(max_context_len, BERT_HID_SIZE)
-            #
-            # if self.use_cuda:
-            #     q_padded_embeddings = q_padded_embeddings.cuda()
-            #     c_padded_embeddings = c_padded_embeddings.cuda()
-            #
-            # q_padded_embeddings[max_question_len - new_q_len:] = q_embeddings
-            # c_padded_embeddings[:new_c_len] = c_embeddings
-
             batch_question_embeddings.append(q_embeddings)
             batch_context_embeddings.append(c_embeddings)
-
-        # batch_question_embeddings = torch.cat(batch_question_embeddings, dim=0)
-        # batch_context_embeddings = torch.cat(batch_context_embeddings, dim=0)
 
         return batch_question_embeddings, batch_context_embeddings, new_question_lengths, new_context_lengths, \
                mask_good_ex
