@@ -46,9 +46,13 @@ def main():
     matched = sum(counter[t] for t in vocab)
     log.info('vocab coverage {1}/{0} | OOV occurrence {2}/{3} ({4:.4f}%)'.format(
         len(counter), len(vocab), (total - matched), total, (total - matched) / total * 100))
-    counter_tag = collections.Counter(w for row in full for w in row[2])
+    counter_tag_c = collections.Counter(w for row in full for w in row[2])
+    counter_tag_q = collections.Counter(w for row in full for w in row[6])
+    counter_tag = counter_tag_c + counter_tag_q
     vocab_tag = sorted(counter_tag, key=counter_tag.get, reverse=True)
-    counter_ent = collections.Counter(w for row in full for w in row[3])
+    counter_ent_c = collections.Counter(w for row in full for w in row[3])
+    counter_ent_q = collections.Counter(w for row in full for w in row[7])
+    counter_ent = counter_ent_c + counter_ent_q
     vocab_ent = sorted(counter_ent, key=counter_ent.get, reverse=True)
     w2id = {w: i for i, w in enumerate(vocab)}
     tag2id = {w: i for i, w in enumerate(vocab_tag)}
@@ -91,12 +95,21 @@ def main():
         'dev': dev
     }
 
-    # train: context_id, context_tokens, context_features, tag_id, ent_id,
-    #        question_id, question_tokens, context_token_span, context, question,
-    #        has_ans, answer_start, answer_end, plausible_answer_start, plausible_answer_end
-    # dev:   context_id, context_tokens, context_features, tag_id, ent_id,
-    #        question_id, question_tokens, context_token_span, context, question,
-    #        has_ans, answer
+    # train:
+    #     0: context_ids, 1: context_tokens, 2: context_features,
+    #     3: context_tag_ids, 4: context_ent_ids,
+    #     5: question_ids, 6: question_tokens, 7: question_features,
+    #     8: question_tag_ids, 9: question_ent_ids,
+    #     10: context_token_span, 11: context, 12: question, 13: has_ans,
+    #     14: answer_start, 15: answer_end,
+    #     16: plausible_answer_start, 17: plausible_answer_end
+    # dev:
+    #     0: context_ids, 1: context_tokens, 2: context_features,
+    #     3: context_tag_ids, 4: context_ent_ids,
+    #     5: question_ids, 6: question_tokens, 7: question_features,
+    #     8: question_tag_ids, 9: question_ent_ids,
+    #     10: context_token_span, 11: context, 12: question,
+    #     13: has_ans, 14: answer
 
     with open('./data.msgpack', 'wb') as f:
         msgpack.dump(result, f)
@@ -194,22 +207,39 @@ def annotate(row, wv_cased):
     context_token_span = [(w.idx, w.idx + len(w.text)) for w in c_doc]
     context_tags = [w.tag_ for w in c_doc]
     context_ents = [w.ent_type_ for w in c_doc]
+    question_tags = [w.tag_ for w in q_doc]
+    question_ents = [w.ent_type_ for w in q_doc]
+    # features: origin, lower, lemma for context-question
     question_lemma = {w.lemma_ if w.lemma_ != '-PRON-' else w.text.lower() for w in q_doc}
     question_tokens_set = set(question_tokens)
     question_tokens_lower_set = set(question_tokens_lower)
-    match_origin = [w in question_tokens_set for w in context_tokens]
-    match_lower = [w in question_tokens_lower_set for w in context_tokens_lower]
-    match_lemma = [(w.lemma_ if w.lemma_ != '-PRON-' else w.text.lower()) in question_lemma for w in c_doc]
-    # term frequency in document
-    counter_ = collections.Counter(context_tokens_lower)
-    total = len(context_tokens_lower)
-    context_tf = [counter_[w] / total for w in context_tokens_lower]
-    context_features = list(zip(match_origin, match_lower, match_lemma, context_tf))
+    context_match_origin = [w in question_tokens_set for w in context_tokens]
+    context_match_lower = [w in question_tokens_lower_set for w in context_tokens_lower]
+    context_match_lemma = [(w.lemma_ if w.lemma_ != '-PRON-' else w.text.lower()) in question_lemma for w in c_doc]
+    # features: origin, lower, lemma for question-context
+    context_lemma = {w.lemma_ if w.lemma_ != '-PRON-' else w.text.lower() for w in c_doc}
+    context_tokens_set = set(context_tokens)
+    context_tokens_lower_set = set(context_tokens_lower)
+    question_match_origin = [w in context_tokens_set for w in question_tokens]
+    question_match_lower = [w in context_tokens_lower_set for w in question_tokens_lower]
+    question_match_lemma = [(w.lemma_ if w.lemma_ != '-PRON-' else w.text.lower()) in context_lemma for w in q_doc]
+    # term frequency in document, context
+    counter_c = collections.Counter(context_tokens_lower)
+    total_c = len(context_tokens_lower)
+    context_tf = [counter_c[w] / total_c for w in context_tokens_lower]
+    # term frequency in document, question
+    counter_q = collections.Counter(question_tokens_lower)
+    total_q = len(question_tokens_lower)
+    question_tf = [counter_q[w] / total_q for w in question_tokens_lower]
+
+    context_features = list(zip(context_match_origin, context_match_lower, context_match_lemma, context_tf))
+    question_features = list(zip(question_match_origin, question_match_lower, question_match_lemma, question_tf))
     if not wv_cased:
         context_tokens = context_tokens_lower
         question_tokens = question_tokens_lower
     return (context_tokens, context_features, context_tags, context_ents,
-            question_tokens, context_token_span, context, question) + row[2:]
+            question_tokens, question_features, question_tags, question_ents,
+            context_token_span) + row
 
 def index_answer(row):
     token_span = row[-9]
@@ -241,16 +271,16 @@ def build_vocab(questions, contexts, wv_vocab, sort_all=False):
     return vocab, counter
 
 def to_id(row, w2id, tag2id, ent2id, unk_id=1):
-    context_tokens = row[0]
-    context_features = row[1]
-    context_tags = row[2]
-    context_ents = row[3]
-    question_tokens = row[4]
-    question_ids = [w2id[w] if w in w2id else unk_id for w in question_tokens]
+    context_tokens, context_features, context_tags, context_ents,
+        question_tokens, question_features, question_tags, question_ents = row[:8]
     context_ids = [w2id[w] if w in w2id else unk_id for w in context_tokens]
-    tag_ids = [tag2id[w] for w in context_tags]
-    ent_ids = [ent2id[w] for w in context_ents]
-    return (context_ids, context_tokens, context_features, tag_ids, ent_ids, question_ids, question_tokens) + row[5:]
+    question_ids = [w2id[w] if w in w2id else unk_id for w in question_tokens]
+    context_tag_ids = [tag2id[w] for w in context_tags]
+    question_tag_ids = [tag2id[w] for w in question_tags]
+    context_ent_ids = [ent2id[w] for w in context_ents]
+    question_ent_ids = [ent2id[w] for w in question_ents]
+    return (context_ids, context_tokens, context_features, context_tag_ids, context_ent_ids,
+        question_ids, question_tokens, question_features, question_tag_ids, question_ent_ids) + row[8:]
 
 if __name__ == '__main__':
     main()
