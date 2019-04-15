@@ -271,7 +271,7 @@ def build_vocab(questions, contexts, wv_vocab, sort_all=False):
     return vocab, counter
 
 def to_id(row, w2id, tag2id, ent2id, unk_id=1):
-    context_tokens, context_features, context_tags, context_ents,
+    context_tokens, context_features, context_tags, context_ents, \
         question_tokens, question_features, question_tags, question_ents = row[:8]
     context_ids = [w2id[w] if w in w2id else unk_id for w in context_tokens]
     question_ids = [w2id[w] if w in w2id else unk_id for w in question_tokens]
