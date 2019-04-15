@@ -173,7 +173,7 @@ def flatten_json(data_file, mode):
                     answer_start = answers[0]['answer_start'] if has_ans else 0
                     answer_end = answer_start + len(answer) if has_ans else 0
                     p_answer_start = answers[0]['answer_start']
-                    p_answer_end = answer_start + len(answer)
+                    p_answer_end = p_answer_start + len(answer)
                     rows.append((context, question, has_ans, answer, answer_start, answer_end, p_answer_start, p_answer_end))
                 else:  # mode == 'dev'
                     answers = [a['text'] for a in answers]
@@ -248,6 +248,10 @@ def index_answer(row):
     p_answer_start, p_answer_end = row[-2], row[-1]
     try:
         return row[:-5] + (starts.index(answer_start), ends.index(answer_end), starts.index(p_answer_start), ends.index(p_answer_end))
+    except ValueError:
+        pass
+    try:
+        return row[:-5] + (0, 0, starts.index(p_answer_start), ends.index(p_answer_end))
     except ValueError:
         return row[:-5] + (None, None, None, None)
 
