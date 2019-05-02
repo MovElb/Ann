@@ -21,7 +21,7 @@ def dropout(x, dropout_rate=0, training=False, dropout_type='variational', use_c
     Args:
         x (Tensor): (batch * len * input_size) or (any other shape)
     """
-    if dropout_type not in set('variational', 'simple', 'alpha'):
+    if dropout_type not in ('variational', 'simple', 'alpha'):
         raise ValueError('Unknown dropout type = {}'.format(dropout_type))
     if dropout_rate > 0:
         # if x is (batch * len * input_size)
@@ -38,7 +38,7 @@ def dropout(x, dropout_rate=0, training=False, dropout_type='variational', use_c
 class StackedBRNN(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers,
                  dropout_rate=0, dropout_output=False, rnn_type=nn.LSTM,
-                 concat_layers=False, padding=True):
+                 concat_layers=False, padding=False):
         super(StackedBRNN, self).__init__()
         self.padding = padding
         self.dropout_output = dropout_output
@@ -172,7 +172,8 @@ class FullAttention(nn.Module):
         self._projection = nn.Linear(input_size, hidden_size, bias=False)
         self._scaling = nn.Parameter(torch.ones(
                 1, hidden_size), requires_grad=True)
-        nn.init.xavier_normal_(self._projection.weight)
+        with torch.no_grad():
+            nn.init.xavier_normal_(self._projection.weight)
 
     def forward(self, queries, keys, values_1, values_1_mask, values_2=None, values_2_mask=None):
         dropped_queries = dropout(
@@ -212,7 +213,8 @@ class Summarize(nn.Module):
         self.dropout_rate = dropout_rate
         self.dropout_type = dropout_type
         self.W = nn.Linear(input_size, 1)
-        nn.init.xavier_normal_(self.W.weight)
+        with torch.no_grad():
+            nn.init.xavier_normal_(self.W.weight)
 
     def forward(self, x, mask):
         dropped_x = dropout(x, self.dropout_rate, self.training,
@@ -233,8 +235,9 @@ class PointerNet(nn.Module):
         self.dropout_type = dropout_type
         self._start_linear = nn.Linear(input_size, input_size)
         self._end_linear = nn.Linear(input_size, input_size)
-        nn.init.xavier_normal_(self._start_linear.weight)
-        nn.init.xavier_normal_(self._end_linear.weight)
+        with torch.no_grad():
+            nn.init.xavier_normal_(self._start_linear.weight)
+            nn.init.xavier_normal_(self._end_linear.weight)
 
     def forward(self, x, y, x_mask):
         """

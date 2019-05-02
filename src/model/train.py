@@ -9,9 +9,9 @@ from shutil import copyfile
 import msgpack
 import torch
 
-from .BatchGen import BatchGen
-from .model import BertyModel
-from .utils import str2bool, score
+from BatchGen import BatchGen
+from model import BertyModel
+from utils import str2bool, score
 
 
 def setup():
@@ -64,6 +64,8 @@ def setup():
     parser.add_argument('--num_features', type=int, default=4)
     parser.add_argument('--glove_dim', type=int, default=300)
     parser.add_argument('--bert_dim', type=int, default=768)
+    parser.add_argument('--pos_dim', type=int, default=12)
+    parser.add_argument('--ner_dim', type=int, default=8)
     parser.add_argument('--max_len', type=int, default=15)
     parser.add_argument('--threshold_ans', type=float, default=0.6)
 
@@ -131,6 +133,7 @@ def load_data(opt):
             opt - dict of updated options
 
     """
+    opt['use_cuda'] = opt['cuda']
     meta_filename = os.path.join(opt['data_dir'], opt['meta_file'])
     with open(meta_filename, 'rb') as f:
         meta = msgpack.load(f, encoding='utf8')
@@ -229,3 +232,6 @@ def main():
                         model_file,
                         os.path.join(args.model_dir, 'best_model.pt'))
                 log.info('[new best model saved.]')
+
+if __name__ == '__main__':
+    main()

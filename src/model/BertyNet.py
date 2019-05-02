@@ -38,7 +38,7 @@ class BertyNet(nn.Module):
                     glove_pretr_embeddings.size(0),
                     glove_pretr_embeddings.size(1),
                     padding_idx=0)
-            self._glove_embeddings.weight[2:, :] = glove_pretr_embeddings[2:, :]
+            self._glove_embeddings.weight.data[2:, :] = glove_pretr_embeddings[2:, :]
             if self.opt['tune_partial'] > 0:
                 assert self.opt['tune_partial'] + 2 < glove_pretr_embeddings.size(0)
                 glove_fixed_embeddings = glove_pretr_embeddings[self.opt['tune_partial'] + 2:]
@@ -96,7 +96,7 @@ class BertyNet(nn.Module):
         self._answer_pointer = PointerNet(cur_input_size)
         self._plausible_answer_pointer = PointerNet(cur_input_size)
 
-        cur_input_size = 3 * (2 * RNN_HIDDEN_SIZE)
+        cur_input_size = 4 * (2 * RNN_HIDDEN_SIZE)
         self._answer_verifier = nn.Sequential(nn.Dropout(DROPOUT_RATE), nn.Linear(cur_input_size, 2))
 
     def prepare_input(self, batch_data, evaluation=False):
@@ -150,6 +150,18 @@ class BertyNet(nn.Module):
         question_features = torch.zeros(new_batch_size, new_question_maxlen, features_len)
         context_features = torch.zeros(new_batch_size, new_context_maxlen, features_len)
 
+        if self.use_cuda:
+            question_glove_ids = question_glove_ids.cuda()
+            question_pos_ids = question_pos_ids.cuda()
+            question_ner_ids = question_ner_ids.cuda()
+            context_glove_ids = context_glove_ids.cuda()
+            context_pos_ids = context_pos_ids.cuda()
+            context_ner_ids = context_ner_ids.cuda()
+            bert_question_fixed = bert_question_fixed.cuda()
+            question_features = question_features.cuda()
+            bert_context_fixed = bert_context_fixed.cuda()
+            context_features = context_features.cuda()
+
         idx = 0
         for i in range(len(mask_good_ex)):
             if mask_good_ex[i]:
@@ -195,8 +207,11 @@ class BertyNet(nn.Module):
         context_mask = self._compute_mask(context_glove_ids)
         context_mask = torch.cat([node_mask, context_mask], dim=1)
 
+        question_zero_mask = torch.zeros(question_mask.size(0), question_mask.size(1) - 1, dtype=torch.uint8)
+        if self.use_cuda:
+            question_zero_mask = question_zero_mask.cuda()
         cat_mask = torch.cat(
-                [torch.zeros(question_mask.size(0), question_mask.size(1) - 1, dtype=torch.uint8), context_mask], dim=1)
+                [question_zero_mask, context_mask], dim=1)
 
         question_glove_emb = self._glove_embeddings(question_glove_ids)
         question_pos_emb = self._pos_embeddings(question_pos_ids)
@@ -395,15 +410,15 @@ class BertyNet(nn.Module):
         deep_cat_how = torch.cat(
                 [low_level_info, high_level_info, full_info], dim=2)
 
-        deep_question_how = deep_cat_how[:question_len + 1]
-        low_question_info = low_level_info[:question_len + 1]
-        high_question_info = high_level_info[:question_len + 1]
-        full_question_info = full_info[:question_len + 1]
+        deep_question_how = deep_cat_how[:, :question_len + 1]
+        low_question_info = low_level_info[:, :question_len + 1]
+        high_question_info = high_level_info[:, :question_len + 1]
+        full_question_info = full_info[:, :question_len + 1]
 
-        deep_context_how = deep_cat_how[question_len:]
-        low_context_info = low_level_info[question_len:]
-        high_context_info = high_level_info[question_len:]
-        full_context_info = full_info[question_len:]
+        deep_context_how = deep_cat_how[:, question_len:]
+        low_context_info = low_level_info[:, question_len:]
+        high_context_info = high_level_info[:, question_len:]
+        full_context_info = full_info[:, question_len:]
 
         low_attention_context, low_attention_question = self._low_attention(
                 deep_context_how, deep_question_how, low_question_info, question_mask, low_context_info, context_mask)
@@ -496,4 +511,4 @@ class BertyNet(nn.Module):
         if self.opt['tune_partial'] > 0:
             offset = self.opt['tune_partial'] + 2
             if offset < self._glove_embeddings.weight.size(0):
-                self._glove_embeddings.weight[offset:] = self._glove_fixed_embeddings
+                self._glove_embeddings.weight.data[offset:] = self._glove_fixed_embeddings
