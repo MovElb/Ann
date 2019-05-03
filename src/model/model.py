@@ -83,7 +83,7 @@ class BertyModel:
         scores_mat = torch.bmm(scores_s.unsqueeze(2), scores_e.unsqueeze(1))
         scores_mat.triu_().tril_(max_len - 1)
         start_idxs = torch.argmax(torch.max(scores_mat, 2)[0], 1)
-        end_idxs = torch.argmax(torch.max(scores_mat, 1), 1)
+        end_idxs = torch.argmax(torch.max(scores_mat, 1)[0], 1)
 
         contexts = batch[-2]
         spans = batch[-1]
