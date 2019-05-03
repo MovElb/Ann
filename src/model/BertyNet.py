@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pytorch_pretrained_bert import BertModel, BertTokenizer
 
-from .layers import FullAttention, StackedBRNN, Summarize, PointerNet
+from layers import FullAttention, StackedBRNN, Summarize, PointerNet
 
 
 class BertyNet(nn.Module):
@@ -53,6 +53,7 @@ class BertyNet(nn.Module):
             self.bert_model.cuda()
         self.bert_model.eval()
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        self.tokenizer.max_len = 2048
 
         self._pos_embeddings = nn.Embedding(POS_SIZE, POS_DIM, padding_idx=0)
         self._ner_embeddings = nn.Embedding(NER_SIZE, NER_DIM, padding_idx=0)
@@ -287,10 +288,18 @@ class BertyNet(nn.Module):
         def get_wordpiece_tokenization(tokens):
             wp_tokens = []
             orig_to_tok_map = []
+            """
             for token in tokens:
                 if token not in ['[CLS]', '[SEP]']:
                     orig_to_tok_map.append(len(wp_tokens))
                 wp_tokens.extend(self.tokenizer.tokenize(token))
+            """
+            for token in tokens:
+                if token not in ['[CLS]', '[SEP]']:
+                    wp_tokenized = self.tokenizer.tokenize(token)
+                    if len(wp_tokenized) > 0:
+                        orig_to_tok_map.append(len(wp_tokens))
+                        wp_tokens.extend(wp_tokenized)
             indexed_wp_tokens = self.tokenizer.convert_tokens_to_ids(wp_tokens)
             return indexed_wp_tokens, orig_to_tok_map
 
