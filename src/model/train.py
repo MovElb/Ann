@@ -16,7 +16,8 @@ from utils import str2bool, score
 
 def setup():
     parser = argparse.ArgumentParser(
-            description='Train a BertyNet model.'
+            description='Train a BertyNet model.',
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     # System parameters
     parser.add_argument('--log_file', default='output.log',
@@ -26,7 +27,7 @@ def setup():
     parser.add_argument('--data_file', default='data.msgpack',
                         help='name of preprocessed data file.')
     parser.add_argument('--meta_file', default='meta.msgpack', help='name of meta-data file')
-    parser.add_argument('--data_dir', default='SQuAD2', help='path to preprocessed data directory')
+    parser.add_argument('--data_dir', default='squad2_processed', help='path to preprocessed data directory')
     parser.add_argument('--model_dir', default='models',
                         help='path to store saved models.')
     parser.add_argument('--save_last_only', action='store_true',
@@ -35,7 +36,7 @@ def setup():
                         help='perform evaluation per x epochs.')
     parser.add_argument('--seed', type=int, default=1337,
                         help='random seed for data shuffling, dropout, etc.')
-    parser.add_argument("--cuda", type=str2bool, nargs='?',
+    parser.add_argument("--use_cuda", type=str2bool, nargs='?',
                         const=True, default=torch.cuda.is_available(),
                         help='whether to use GPU acceleration.')
 
@@ -66,7 +67,7 @@ def setup():
     parser.add_argument('--bert_dim', type=int, default=768)
     parser.add_argument('--pos_dim', type=int, default=12)
     parser.add_argument('--ner_dim', type=int, default=8)
-    parser.add_argument('--max_len', type=int, default=15)
+    parser.add_argument('--max_pred_len', type=int, default=15)
     parser.add_argument('--threshold_ans', type=float, default=0.6)
 
     args = parser.parse_args()
@@ -83,7 +84,7 @@ def setup():
     # set random seed
     random.seed(args.seed)
     torch.manual_seed(args.seed)
-    if args.cuda:
+    if args.use_cuda:
         torch.cuda.manual_seed(args.seed)
 
     # setup logger
@@ -133,7 +134,6 @@ def load_data(opt):
             opt - dict of updated options
 
     """
-    opt['use_cuda'] = opt['cuda']
     meta_filename = os.path.join(opt['data_dir'], opt['meta_file'])
     with open(meta_filename, 'rb') as f:
         meta = msgpack.load(f, encoding='utf8')
@@ -162,7 +162,7 @@ def main():
     if args.resume:
         log.info('[loading previous model...]')
         checkpoint = torch.load(os.path.join(args.model_dir, args.resume),
-                                map_location="cuda" if torch.cuda.is_available() else "cpu")
+                                map_location="cuda" if args.use_cuda else "cpu")
         if args.resume_options:
             opt = checkpoint['config']
         state_dict = checkpoint['state_dict']
@@ -170,16 +170,18 @@ def main():
         epoch_0 = checkpoint['epoch'] + 1
         # synchronize random seed
         random.setstate(checkpoint['random_state'])
-        torch.random.set_rng_state(checkpoint['torch_state'])
-        if args.cuda:
-            torch.cuda.set_rng_state(checkpoint['torch_cuda_state'])
+        torch.random.set_rng_state(checkpoint['torch_state'].cpu())
+        if args.use_cuda:
+            torch.cuda.set_rng_state(checkpoint['torch_cuda_state'].cpu())
 
     else:
         model = BertyModel(opt, embeddings)
         epoch_0 = 1
 
-    if args.cuda:
+    if args.use_cuda:
         model.cuda()
+
+    em, f1 = 0., 0.
 
     if args.resume:
         batches = BatchGen(dev_data, batch_size=args.batch_size, evaluation=True)
@@ -206,9 +208,12 @@ def main():
         start = datetime.now()
         for i, batch in enumerate(batches):
             model.update(batch)
+            if model.averaged_loss.value in (float('inf'), float('nan')):
+                log.error("Loss is inf/nan. Updating on batches[{}] failed".format(i))
+                break
             if i % args.log_per_updates == 0:
-                log.info('> epoch [{0:2}] updates[{1:6}] train loss[{2:.5f}] remaining[{3}]'.format(
-                        epoch, model.updates, model.train_loss.value,
+                log.info('> epoch [{0:2}] iter[{1:4}/{2:4}] train loss[{3:.5f}] remaining[{4}]'.format(
+                        epoch, model.iterations, len(batches), model.averaged_loss.value,
                         str((datetime.now() - start) / (i + 1) * (len(batches) - i - 1)).split('.')[0]))
         # eval
         if epoch % args.eval_per_epoch == 0:
@@ -232,6 +237,7 @@ def main():
                         model_file,
                         os.path.join(args.model_dir, 'best_model.pt'))
                 log.info('[new best model saved.]')
+
 
 if __name__ == '__main__':
     main()

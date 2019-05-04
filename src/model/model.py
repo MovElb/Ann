@@ -79,14 +79,14 @@ class BertyModel:
         scores_s = F.softmax(logits_s, dim=1)[:, 1:]
         scores_e = F.softmax(logits_e, dim=1)[:, 1:]
 
-        max_len = self.opt['max_len'] or scores_s.size(1)
+        max_pred_len = self.opt['max_pred_len'] or scores_s.size(1)
         scores_mat = torch.bmm(scores_s.unsqueeze(2), scores_e.unsqueeze(1))
-        scores_mat.triu_().tril_(max_len - 1)
+        scores_mat.triu_().tril_(max_pred_len - 1)
         start_idxs = torch.argmax(torch.max(scores_mat, 2)[0], 1)
         end_idxs = torch.argmax(torch.max(scores_mat, 1)[0], 1)
 
-        contexts = batch[-2]
-        spans = batch[-1]
+        contexts = batch[11]
+        spans = batch[10]
         predictions = []
         for i in range(start_idxs.size(0)):
             start_idx, end_idx = start_idxs[i].item(), end_idxs[i].item()
