@@ -286,20 +286,15 @@ class BertyNet(nn.Module):
         SEP_IND = self.tokenizer.convert_tokens_to_ids(['[SEP]'])[0]
 
         def get_wordpiece_tokenization(tokens):
+            UNK = '[UNK]'
             wp_tokens = []
             orig_to_tok_map = []
-            """
             for token in tokens:
-                if token not in ['[CLS]', '[SEP]']:
-                    orig_to_tok_map.append(len(wp_tokens))
-                wp_tokens.extend(self.tokenizer.tokenize(token))
-            """
-            for token in tokens:
-                if token not in ['[CLS]', '[SEP]']:
-                    wp_tokenized = self.tokenizer.tokenize(token)
-                    if len(wp_tokenized) > 0:
-                        orig_to_tok_map.append(len(wp_tokens))
-                        wp_tokens.extend(wp_tokenized)
+                wp_tokenized = self.tokenizer.tokenize(token)
+                if len(wp_tokenized) == 0:
+                    wp_tokenized = [UNK]
+                orig_to_tok_map.append(len(wp_tokens))
+                wp_tokens.extend(wp_tokenized)
             indexed_wp_tokens = self.tokenizer.convert_tokens_to_ids(wp_tokens)
             return indexed_wp_tokens, orig_to_tok_map
 
