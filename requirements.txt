@@ -1,0 +1,13 @@
+aiohttp==3.5.4
+attrs==19.1.0
+chardet==3.0.4
+Click==7.0
+marshmallow==2.19.2
+multidict==4.5.2
+mypy==0.701
+mypy-extensions==0.4.1
+PyYAML==5.1
+raven==6.10.0
+raven-aiohttp==0.7.0
+urllib3==1.25.2
+uvloop==0.12.2

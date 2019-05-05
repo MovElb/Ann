@@ -1,0 +1,13 @@
+app:
+  debug: true
+  environment: development
+
+saas:
+  url:
+  conn_timeout: 10
+  read_timeout: 10
+
+net:
+  url:
+  conn_timeout: 10
+  read_timeout: 10
