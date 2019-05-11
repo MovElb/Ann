@@ -195,11 +195,20 @@ def init():
     global nlp
     nlp = spacy.load('en', parser=False)
 
-def annotate(row, wv_cased):
-    global nlp
+def get_doc(row, nlp):
     context, question = row[:2]
     q_doc = nlp(clean_spaces(question))
     c_doc = nlp(clean_spaces(context))
+    return q_doc, c_doc
+
+def annotate(row, wv_cased, init_nlp=None):
+    context, question = row[:2]
+    if init_nlp is None:
+        global nlp
+        q_doc = nlp(clean_spaces(question))
+        c_doc = nlp(clean_spaces(context))
+    else:
+        q_doc, c_doc = get_doc(row, init_nlp)
     question_tokens = [normalize_text(w.text) for w in q_doc]
     context_tokens = [normalize_text(w.text) for w in c_doc]
     question_tokens_lower = [w.lower() for w in question_tokens]
