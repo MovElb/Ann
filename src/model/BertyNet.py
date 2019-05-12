@@ -428,7 +428,7 @@ class BertyNet(nn.Module):
                 deep_context_how, deep_question_how, low_question_info, question_mask, low_context_info, context_mask)
         high_attention_context, high_attention_question = self._high_attention(
                 deep_context_how, deep_question_how, high_question_info, question_mask, high_context_info, context_mask)
-        full_attention_context, full_attention_question = self._high_attention(
+        full_attention_context, full_attention_question = self._full_attention(
                 deep_context_how, deep_question_how, full_question_info, question_mask, full_context_info, context_mask)
 
         # sum up two attention representations for universal node

@@ -27,7 +27,7 @@ def setup():
     parser.add_argument('--data_file', default='data.msgpack',
                         help='name of preprocessed data file.')
     parser.add_argument('--meta_file', default='meta.msgpack', help='name of meta-data file')
-    parser.add_argument('--data_dir', default='squad2_processed', help='path to preprocessed data directory')
+    parser.add_argument('--data_dir', default='squad2_preprocessed', help='path to preprocessed data directory')
     parser.add_argument('--model_dir', default='models',
                         help='path to store saved models.')
     parser.add_argument('--save_last_only', action='store_true',
@@ -205,6 +205,7 @@ def main():
         log.warning('Epoch {}'.format(epoch))
         # train
         batches = BatchGen(train_data, batch_size=args.batch_size)
+        batches_count = len(batches)
         start = datetime.now()
         for i, batch in enumerate(batches):
             model.update(batch)
@@ -213,7 +214,7 @@ def main():
                 break
             if i % args.log_per_updates == 0:
                 log.info('> epoch [{0:2}] iter[{1:4}/{2:4}] train loss[{3:.5f}] remaining[{4}]'.format(
-                        epoch, model.iterations, len(batches), model.averaged_loss.value,
+                        epoch, model.iterations % batches_count, batches_count, model.averaged_loss.value,
                         str((datetime.now() - start) / (i + 1) * (len(batches) - i - 1)).split('.')[0]))
         # eval
         if epoch % args.eval_per_epoch == 0:
