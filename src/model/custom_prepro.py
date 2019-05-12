@@ -1,15 +1,16 @@
+from functools import partial
+
 import msgpack
 import numpy as np
 import spacy
 from prepro import annotate, to_id, normalize_text
-from functools import partial
-import logging
+
 
 class CustomPrepro():
     def __init__(self
-                , meta_file='./meta.msgpack'
-                , wv_file='../../data/glove.840B.300d.txt'
-                , wv_dim=300):
+                 , meta_file='./squad2_preprocessed/meta.msgpack'
+                 , wv_file='./squad2_data/glove.840B.300d.txt'
+                 , wv_dim=300):
         with open(meta_file, 'rb') as f:
             meta = msgpack.unpack(f)
         self.vocab = meta['vocab']
