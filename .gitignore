@@ -1,5 +1,6 @@
 data/
 src/model/*.msgpack
+*squad2_preprocessed/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
