@@ -1,17 +1,21 @@
-import re
-import json
-import spacy
-import msgpack
-import unicodedata
-import numpy as np
 import argparse
 import collections
-import multiprocessing
-from multiprocessing import Pool
-from utils import str2bool
-from tqdm import tqdm
-from functools import partial
+import json
 import logging
+import multiprocessing
+import re
+import unicodedata
+from functools import partial
+from multiprocessing import Pool
+from os import makedirs
+from os.path import join
+
+import msgpack
+import numpy as np
+import spacy
+from tqdm import tqdm
+from utils import str2bool
+
 
 def main():
     args, log = setup()
@@ -45,10 +49,14 @@ def main():
     total = sum(counter.values())
     matched = sum(counter[t] for t in vocab)
     log.info('vocab coverage {1}/{0} | OOV occurrence {2}/{3} ({4:.4f}%)'.format(
-        len(counter), len(vocab), (total - matched), total, (total - matched) / total * 100))
-    counter_tag = collections.Counter(w for row in full for w in row[2])
+            len(counter), len(vocab), (total - matched), total, (total - matched) / total * 100))
+    counter_tag_c = collections.Counter(w for row in full for w in row[2])
+    counter_tag_q = collections.Counter(w for row in full for w in row[6])
+    counter_tag = counter_tag_c + counter_tag_q
     vocab_tag = sorted(counter_tag, key=counter_tag.get, reverse=True)
-    counter_ent = collections.Counter(w for row in full for w in row[3])
+    counter_ent_c = collections.Counter(w for row in full for w in row[3])
+    counter_ent_q = collections.Counter(w for row in full for w in row[7])
+    counter_ent = counter_ent_c + counter_ent_q
     vocab_ent = sorted(counter_ent, key=counter_ent.get, reverse=True)
     w2id = {w: i for i, w in enumerate(vocab)}
     tag2id = {w: i for i, w in enumerate(vocab_tag)}
@@ -84,41 +92,54 @@ def main():
         'embedding': embeddings.tolist(),
         'wv_cased': args.wv_cased,
     }
-    with open('./meta.msgpack', 'wb') as f:
+    with open(join(args.output_dir, 'meta.msgpack'), 'wb') as f:
         msgpack.dump(meta, f)
     result = {
         'train': train,
         'dev': dev
     }
 
-    # train: context_id, context_tokens, context_features, tag_id, ent_id,
-    #        question_id, question_tokens, context_token_span, context, question,
-    #        has_ans, answer_start, answer_end, plausible_answer_start, plausible_answer_end
-    # dev:   context_id, context_tokens, context_features, tag_id, ent_id,
-    #        question_id, question_tokens, context_token_span, context, question,
-    #        has_ans, answer
+    # train:
+    #     0: context_ids, 1: context_tokens, 2: context_features,
+    #     3: context_tag_ids, 4: context_ent_ids,
+    #     5: question_ids, 6: question_tokens, 7: question_features,
+    #     8: question_tag_ids, 9: question_ent_ids,
+    #     10: context_token_span, 11: context, 12: question, 13: has_ans,
+    #     14: answer_start, 15: answer_end,
+    #     16: plausible_answer_start, 17: plausible_answer_end
+    # dev:
+    #     0: context_ids, 1: context_tokens, 2: context_features,
+    #     3: context_tag_ids, 4: context_ent_ids,
+    #     5: question_ids, 6: question_tokens, 7: question_features,
+    #     8: question_tag_ids, 9: question_ent_ids,
+    #     10: context_token_span, 11: context, 12: question,
+    #     13: has_ans, 14: answer
 
-    with open('./data.msgpack', 'wb') as f:
+    with open(join(args.output_dir, 'data.msgpack'), 'wb') as f:
         msgpack.dump(result, f)
     if args.sample_size:
         sample = {
             'train': train[:args.sample_size],
             'dev': dev[:args.sample_size]
         }
-        with open('./sample.msgpack', 'wb') as f:
+        with open(join(args.output_dir, 'sample.msgpack'), 'wb') as f:
             msgpack.dump(sample, f)
     log.info('saved to disk.')
 
+
 def setup():
     parser = argparse.ArgumentParser(
-        description='Preprocessing data files, about 10 minitues to run.'
+            description='Preprocessing data files, about 15 minutes to run.',
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument('--trn_file', default='./data/train-v2.0.json',
+    parser.add_argument('--trn_file', default='./squad2_data/train-v2.0.json',
                         help='path to train file.')
-    parser.add_argument('--dev_file', default='./data/dev-v2.0.json',
+    parser.add_argument('--dev_file', default='./squad2_data/dev-v2.0.json',
                         help='path to dev file.')
-    parser.add_argument('--wv_file', default='./data/glove.840B.300d.txt',
+    parser.add_argument('--wv_file', default='./squad2_data/glove.840B.300d.txt',
                         help='path to word vector file.')
+    parser.add_argument('--output_dir', default='./squad2_preprocessed',
+                        help='path to output directory')
     parser.add_argument('--wv_dim', type=int, default=300,
                         help='word vector dimension.')
     parser.add_argument('--wv_cased', type=str2bool, nargs='?',
@@ -135,13 +156,16 @@ def setup():
                         help='batch size for multiprocess tokenizing and tagging.')
     args = parser.parse_args()
 
+    makedirs(args.output_dir, exist_ok=True)
+
     logging.basicConfig(format='%(asctime)s %(message)s', level=logging.DEBUG,
                         datefmt='%m/%d/%Y %I:%M:%S')
     log = logging.getLogger(__name__)
     log.info(vars(args))
-    log.info('start data preparing...')
+    log.info('Started data preparing...')
 
     return args, log
+
 
 def flatten_json(data_file, mode):
     """Flatten each article in training data."""
@@ -160,33 +184,49 @@ def flatten_json(data_file, mode):
                     answer_start = answers[0]['answer_start'] if has_ans else 0
                     answer_end = answer_start + len(answer) if has_ans else 0
                     p_answer_start = answers[0]['answer_start']
-                    p_answer_end = answer_start + len(answer)
-                    rows.append((context, question, has_ans, answer, answer_start, answer_end, p_answer_start, p_answer_end))
+                    p_answer_end = p_answer_start + len(answer)
+                    rows.append((context, question, has_ans, answer, answer_start, answer_end, p_answer_start,
+                                 p_answer_end))
                 else:  # mode == 'dev'
                     answers = [a['text'] for a in answers]
                     rows.append((context, question, has_ans, answers))
     return rows
 
+
 def clean_spaces(text):
     """normalize spaces in a string."""
-    text = re.sub(r'\s', ' ', text)
+    text = re.sub(r'\s', ' ', text).strip()
     return text
+
 
 def normalize_text(text):
     return unicodedata.normalize('NFD', text)
 
+
 nlp = None
+
 
 def init():
     """initialize spacy in each process"""
     global nlp
     nlp = spacy.load('en', parser=False)
 
-def annotate(row, wv_cased):
-    global nlp
+
+def get_doc(row, nlp):
     context, question = row[:2]
     q_doc = nlp(clean_spaces(question))
     c_doc = nlp(clean_spaces(context))
+    return q_doc, c_doc
+
+
+def annotate(row, wv_cased, init_nlp=None):
+    context, question = row[:2]
+    if init_nlp is None:
+        global nlp
+        q_doc = nlp(clean_spaces(question))
+        c_doc = nlp(clean_spaces(context))
+    else:
+        q_doc, c_doc = get_doc(row, init_nlp)
     question_tokens = [normalize_text(w.text) for w in q_doc]
     context_tokens = [normalize_text(w.text) for w in c_doc]
     question_tokens_lower = [w.lower() for w in question_tokens]
@@ -194,22 +234,40 @@ def annotate(row, wv_cased):
     context_token_span = [(w.idx, w.idx + len(w.text)) for w in c_doc]
     context_tags = [w.tag_ for w in c_doc]
     context_ents = [w.ent_type_ for w in c_doc]
+    question_tags = [w.tag_ for w in q_doc]
+    question_ents = [w.ent_type_ for w in q_doc]
+    # features: origin, lower, lemma for context-question
     question_lemma = {w.lemma_ if w.lemma_ != '-PRON-' else w.text.lower() for w in q_doc}
     question_tokens_set = set(question_tokens)
     question_tokens_lower_set = set(question_tokens_lower)
-    match_origin = [w in question_tokens_set for w in context_tokens]
-    match_lower = [w in question_tokens_lower_set for w in context_tokens_lower]
-    match_lemma = [(w.lemma_ if w.lemma_ != '-PRON-' else w.text.lower()) in question_lemma for w in c_doc]
-    # term frequency in document
-    counter_ = collections.Counter(context_tokens_lower)
-    total = len(context_tokens_lower)
-    context_tf = [counter_[w] / total for w in context_tokens_lower]
-    context_features = list(zip(match_origin, match_lower, match_lemma, context_tf))
+    context_match_origin = [w in question_tokens_set for w in context_tokens]
+    context_match_lower = [w in question_tokens_lower_set for w in context_tokens_lower]
+    context_match_lemma = [(w.lemma_ if w.lemma_ != '-PRON-' else w.text.lower()) in question_lemma for w in c_doc]
+    # features: origin, lower, lemma for question-context
+    context_lemma = {w.lemma_ if w.lemma_ != '-PRON-' else w.text.lower() for w in c_doc}
+    context_tokens_set = set(context_tokens)
+    context_tokens_lower_set = set(context_tokens_lower)
+    question_match_origin = [w in context_tokens_set for w in question_tokens]
+    question_match_lower = [w in context_tokens_lower_set for w in question_tokens_lower]
+    question_match_lemma = [(w.lemma_ if w.lemma_ != '-PRON-' else w.text.lower()) in context_lemma for w in q_doc]
+    # term frequency in document, context
+    counter_c = collections.Counter(context_tokens_lower)
+    total_c = len(context_tokens_lower)
+    context_tf = [counter_c[w] / total_c for w in context_tokens_lower]
+    # term frequency in document, question
+    counter_q = collections.Counter(question_tokens_lower)
+    total_q = len(question_tokens_lower)
+    question_tf = [counter_q[w] / total_q for w in question_tokens_lower]
+
+    context_features = list(zip(context_match_origin, context_match_lower, context_match_lemma, context_tf))
+    question_features = list(zip(question_match_origin, question_match_lower, question_match_lemma, question_tf))
     if not wv_cased:
         context_tokens = context_tokens_lower
         question_tokens = question_tokens_lower
     return (context_tokens, context_features, context_tags, context_ents,
-            question_tokens, context_token_span, context, question) + row[2:]
+            question_tokens, question_features, question_tags, question_ents,
+            context_token_span) + row
+
 
 def index_answer(row):
     token_span = row[-9]
@@ -217,9 +275,15 @@ def index_answer(row):
     answer_start, answer_end = row[-4], row[-3]
     p_answer_start, p_answer_end = row[-2], row[-1]
     try:
-        return row[:-5] + (starts.index(answer_start), ends.index(answer_end), starts.index(p_answer_start), ends.index(p_answer_end))
+        return row[:-5] + (
+            starts.index(answer_start), ends.index(answer_end), starts.index(p_answer_start), ends.index(p_answer_end))
+    except ValueError:
+        pass
+    try:
+        return row[:-5] + (0, 0, starts.index(p_answer_start), ends.index(p_answer_end))
     except ValueError:
         return row[:-5] + (None, None, None, None)
+
 
 def build_vocab(questions, contexts, wv_vocab, sort_all=False):
     """
@@ -240,17 +304,19 @@ def build_vocab(questions, contexts, wv_vocab, sort_all=False):
     vocab.insert(1, "<UNK>")
     return vocab, counter
 
+
 def to_id(row, w2id, tag2id, ent2id, unk_id=1):
-    context_tokens = row[0]
-    context_features = row[1]
-    context_tags = row[2]
-    context_ents = row[3]
-    question_tokens = row[4]
-    question_ids = [w2id[w] if w in w2id else unk_id for w in question_tokens]
+    context_tokens, context_features, context_tags, context_ents, \
+    question_tokens, question_features, question_tags, question_ents = row[:8]
     context_ids = [w2id[w] if w in w2id else unk_id for w in context_tokens]
-    tag_ids = [tag2id[w] for w in context_tags]
-    ent_ids = [ent2id[w] for w in context_ents]
-    return (context_ids, context_tokens, context_features, tag_ids, ent_ids, question_ids, question_tokens) + row[5:]
+    question_ids = [w2id[w] if w in w2id else unk_id for w in question_tokens]
+    context_tag_ids = [tag2id[w] for w in context_tags]
+    question_tag_ids = [tag2id[w] for w in question_tags]
+    context_ent_ids = [ent2id[w] for w in context_ents]
+    question_ent_ids = [ent2id[w] for w in question_ents]
+    return (context_ids, context_tokens, context_features, context_tag_ids, context_ent_ids,
+            question_ids, question_tokens, question_features, question_tag_ids, question_ent_ids) + row[8:]
+
 
 if __name__ == '__main__':
     main()
