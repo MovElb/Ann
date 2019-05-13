@@ -23,11 +23,16 @@ class BertyModel:
             self.averaged_loss.load(state_dict['averaged_loss'])
 
         self.network = BertyNet(opt, glove_embeddings=embeddings)
+
         if state_dict is not None:
-            new_state = set(self.network.state_dict().keys())
+            new_state_dict = self.network.state_dict()
+            new_state_keys = set(new_state_dict.keys())
             for k in list(state_dict['network'].keys()):
-                if k not in new_state:
+                if k not in new_state_keys:
                     del state_dict['network'][k]
+            for k in new_state_keys:
+                if k not in state_dict['network']:
+                    state_dict['network'][k] = new_state_dict[k]
             self.network.load_state_dict(state_dict['network'])
 
         self.opt_state_dict = state_dict['optimizer'] if state_dict is not None else None
@@ -96,9 +101,14 @@ class BertyModel:
         return predictions, is_answerable
 
     def save(self, filename, epoch):
+        state_dict = self.network.state_dict()
+        updated_state_dict = state_dict.copy()
+        for key in state_dict.keys():
+            if 'bert' in key:
+                del updated_state_dict[key]
         params = {
             'state_dict': {
-                'network': self.network.state_dict(),
+                'network': updated_state_dict,
                 'optimizer': self.optimizer.state_dict(),
                 'iterations': self.iterations,
                 'averaged_loss': self.averaged_loss.state_dict()

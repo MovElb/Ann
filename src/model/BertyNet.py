@@ -57,13 +57,14 @@ class BertyNet(nn.Module):
 
         self._pos_embeddings = nn.Embedding(POS_SIZE, POS_DIM, padding_idx=0)
         self._ner_embeddings = nn.Embedding(NER_SIZE, NER_DIM, padding_idx=0)
-        self._universal_node = nn.Parameter(torch.zeros(1, TOTAL_DIM))
-        nn.init.xavier_normal_(self._universal_node)
 
         self._word_attention = FullAttention(GLOVE_DIM, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE,
                                              use_cuda=self.use_cuda)
 
-        init_input_size = TOTAL_DIM  + GLOVE_DIM
+        init_input_size = TOTAL_DIM + GLOVE_DIM
+        self._universal_node = nn.Parameter(torch.zeros(1, init_input_size))
+        nn.init.xavier_normal_(self._universal_node)
+
         cur_input_size = init_input_size
         self._low_info_lstm = StackedBRNN(cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
         cur_input_size = 2 * RNN_HIDDEN_SIZE
@@ -304,6 +305,11 @@ class BertyNet(nn.Module):
                 orig_to_tok_map.append(len(wp_tokens))
                 wp_tokens.extend(wp_tokenized)
             indexed_wp_tokens = self.tokenizer.convert_tokens_to_ids(wp_tokens)
+            if len(indexed_wp_tokens) > MAX_SEQ_LEN - 2:
+                indexed_wp_tokens = torch.tensor(indexed_wp_tokens)
+                indexed_wp_tokens = indexed_wp_tokens[orig_to_tok_map]
+                orig_to_tok_map = list(range(len(indexed_wp_tokens)))
+                indexed_wp_tokens = indexed_wp_tokens.tolist()
             return indexed_wp_tokens, orig_to_tok_map
 
         def truncate_sequence(seq_tokens, mapping, desired_len):
