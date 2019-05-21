@@ -1,7 +1,10 @@
+import os
+
 import aiohttp
-import ujson as ujson
+import ujson
 from typing import Any, List
 
+import wikipediaapi
 from aiohttp import web
 
 
@@ -25,9 +28,18 @@ class BaseConnector:
 class SaaSConnector(BaseConnector):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
+        self._url = self._url.format(os.environ['GAPI_KEY'], os.environ['GAPI_CX'])
+        self._wiki = wikipediaapi.Wikipedia('en')
 
     async def get_documents(self, query, limit: int = 10) -> List[str]:
-        pass
+        async with self._sess.get(self._url) as resp:
+            resp.raise_for_status()
+            urls = [item['link'] for item in await resp.json(loads=ujson.loads)]
+
+            texts = []
+            for url in urls:
+                texts.append(self._wiki.page(url.split('/')[-1]).text)
+            return texts
 
     async def process_query(self, query) -> str:
         pass
@@ -37,7 +49,7 @@ class NetConnector(BaseConnector):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
-    async def get_answer(self, ) -> str:
+    async def get_answer(self, query, texts) -> str:
         pass
 
 

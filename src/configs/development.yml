@@ -3,11 +3,11 @@ app:
   environment: development
 
 saas:
-  url:
+  url: "https://www.googleapis.com/customsearch/v1?key={}&cx={}&q="
   conn_timeout: 10
   read_timeout: 10
 
 net:
-  url:
+  url: ""
   conn_timeout: 10
   read_timeout: 10

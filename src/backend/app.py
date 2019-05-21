@@ -6,11 +6,9 @@ import yaml
 from aiohttp import web
 import click
 
-from src.backend.connectors import setup_connectors
-from src.backend.middlewares import error_middleware
-from src.backend.schemas import ConfigSchema
-from src.backend.sentry import init_sentry
-from src.backend.views import search_handler
+from .connectors import setup_connectors
+from .schemas import ConfigSchema
+from .views import search_handler
 
 uvloop.install()
 
@@ -24,21 +22,20 @@ logging.basicConfig(
 
 def read_config(config_path: str) -> Dict:
     with open(config_path, "r") as conf_file:
-        raw_config = yaml.load(conf_file) or {}
+        raw_config = yaml.load(conf_file, Loader=yaml.FullLoader) or {}
 
     return ConfigSchema(strict=True).load(raw_config).data
 
 
 def setup_routes(app: web.Application) -> None:
-    app.router.add_post('/search', search_handler)
+    app.router.add_get('/search', search_handler)
 
 
 async def create_app(config_path: str) -> web.Application:
-    app = web.Application(middlewares=[error_middleware])
+    app = web.Application()
 
     app["config"] = read_config(config_path)
 
-    init_sentry(app)
     setup_routes(app)
     setup_connectors(app)
 
@@ -46,7 +43,7 @@ async def create_app(config_path: str) -> web.Application:
 
 
 @click.command()
-@click.option("--config-path", default='/qaweb/etc/development.yml')
+@click.option("--config-path", default='/qaweb/configs/development.yml')
 @click.option("--port", default=8080)
 @click.option("--socket-path")
 def start_app(config_path: str, port: int, socket_path: Optional[str]) -> None:
