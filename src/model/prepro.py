@@ -88,7 +88,7 @@ def main():
         'embedding': embeddings.tolist(),
         'wv_cased': args.wv_cased,
     }
-    with open('./meta.msgpack', 'wb') as f:
+    with open('./squad2_preprocessed/meta.msgpack', 'wb') as f:
         msgpack.dump(meta, f)
     result = {
         'train': train,
@@ -111,14 +111,14 @@ def main():
     #     10: context_token_span, 11: context, 12: question,
     #     13: has_ans, 14: answer
 
-    with open('./data.msgpack', 'wb') as f:
+    with open('./squad2_preprocessed/data.msgpack', 'wb') as f:
         msgpack.dump(result, f)
     if args.sample_size:
         sample = {
             'train': train[:args.sample_size],
             'dev': dev[:args.sample_size]
         }
-        with open('./sample.msgpack', 'wb') as f:
+        with open('./squad2_preprocessed/sample.msgpack', 'wb') as f:
             msgpack.dump(sample, f)
     log.info('saved to disk.')
 
