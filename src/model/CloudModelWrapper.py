@@ -21,6 +21,9 @@ class CloudModelWrapper:
         self.load_embeddings_and_update_opt_()
 
         self.model = BertyModel(self.opt, self.embeddings, self.state_dict)
+        if args.use_cuda:
+            self.model.cuda()
+
         # synchronize random seed
         random.setstate(checkpoint['random_state'])
         torch.random.set_rng_state(checkpoint['torch_state'].cpu())
@@ -40,7 +43,7 @@ class CloudModelWrapper:
 
     def generate_model_answers(self, preprocessed_data):
         batched_data = next(iter(self.bg_wrap([preprocessed_data])))
-        model_answers = self.model(batched_data)
+        model_answers = self.model.infer(batched_data)
         return model_answers
 
 
