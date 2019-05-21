@@ -126,11 +126,11 @@ def setup():
     parser = argparse.ArgumentParser(
         description='Preprocessing data files, about 10 minitues to run.'
     )
-    parser.add_argument('--trn_file', default='../../data/train-v2.0.json',
+    parser.add_argument('--trn_file', default='./squad2_data/train-v2.0.json',
                         help='path to train file.')
-    parser.add_argument('--dev_file', default='../../data/dev-v2.0.json',
+    parser.add_argument('--dev_file', default='./squad2_data/dev-v2.0.json',
                         help='path to dev file.')
-    parser.add_argument('--wv_file', default='../../data/glove.840B.300d.txt',
+    parser.add_argument('--wv_file', default='./squad2_data/glove.840B.300d.txt',
                         help='path to word vector file.')
     parser.add_argument('--wv_dim', type=int, default=300,
                         help='word vector dimension.')
