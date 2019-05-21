@@ -10,8 +10,8 @@ from BatchGen import BatchGen
 
 
 class CloudModelWrapper:
-    def __init__(self, checkpoint_filepath, args):
-        checkpoint = torch.load(checkpoint_filepath, map_location="cuda" if args.use_cuda else "cpu")
+    def __init__(self, args):
+        checkpoint = torch.load(args.model_path, map_location="cuda" if args.use_cuda else "cpu")
         opt = checkpoint['config']
         opt.update(vars(args))
 
@@ -42,7 +42,7 @@ class CloudModelWrapper:
         self.opt['ner_size'] = len(meta['vocab_ent'])
 
     def generate_model_answers(self, preprocessed_data):
-        batched_data = next(iter(self.bg_wrap([preprocessed_data])))
+        batched_data = next(iter(self.bg_wrap(preprocessed_data)))
         model_answers = self.model.infer(batched_data)
         return model_answers
 
