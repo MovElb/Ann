@@ -1,4 +1,5 @@
 import os
+import urllib.parse
 
 import aiohttp
 import ujson
@@ -31,14 +32,16 @@ class SaaSConnector(BaseConnector):
         self._url = self._url.format(os.environ['GAPI_KEY'], os.environ['GAPI_CX'])
         self._wiki = wikipediaapi.Wikipedia('en')
 
-    async def get_documents(self, query, limit: int = 10) -> List[str]:
-        async with self._sess.get(self._url) as resp:
+    async def get_documents(self, query, limit: int = 10) -> List[wikipediaapi.WikipediaPage]:
+        quote_encoded = urllib.parse.quote(query)
+
+        async with self._sess.get(self._url + quote_encoded) as resp:
             resp.raise_for_status()
-            urls = [item['link'] for item in await resp.json(loads=ujson.loads)]
+            urls = [item['link'] for item in await resp.json(loads=ujson.loads)][:limit]
 
             texts = []
             for url in urls:
-                texts.append(self._wiki.page(url.split('/')[-1]).text)
+                texts.append(self._wiki.page(url.split('/')[-1]))
             return texts
 
     async def process_query(self, query) -> str:
