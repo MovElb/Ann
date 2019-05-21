@@ -70,6 +70,9 @@ def setup():
     parser.add_argument('--max_pred_len', type=int, default=15)
     parser.add_argument('--threshold_ans', type=float, default=0.6)
 
+    parser.add_argument('--decay_period', type=int, default=10)
+    parser.add_argument('--decay', type=float, default=0.75)
+
     args = parser.parse_args()
 
     # set model dir
@@ -238,6 +241,14 @@ def main():
                         model_file,
                         os.path.join(args.model_dir, 'best_model.pt'))
                 log.info('[new best model saved.]')
+
+        # lr decay
+        if epoch > 0 and epoch % args.decay_period == 0:
+            new_lr = None
+            for param_group in model.optimizer.param_groups:
+                param_group['lr'] *= args.decay
+                new_lr = param_group['lr']
+            log.info('Reduced learning rate to {} at epoch # {}'.format(new_lr, epoch))
 
 
 if __name__ == '__main__':

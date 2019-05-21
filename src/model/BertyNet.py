@@ -19,14 +19,14 @@ class BertyNet(nn.Module):
         self._build_model()
 
     def _build_model(self):
-        GLOVE_FEAT_DIM = self.opt['glove_dim']
-        BERT_FEAT_DIM = self.opt['bert_dim']
+        GLOVE_DIM = self.opt['glove_dim']
+        BERT_DIM = self.opt['bert_dim']
         POS_DIM = self.opt['pos_dim']
         POS_SIZE = self.opt['pos_size']
         NER_DIM = self.opt['ner_dim']
         NER_SIZE = self.opt['ner_size']
         CUSTOM_FEAT_DIM = 4
-        TOTAL_DIM = GLOVE_FEAT_DIM + BERT_FEAT_DIM + POS_DIM + NER_DIM + CUSTOM_FEAT_DIM
+        TOTAL_DIM = GLOVE_DIM + BERT_DIM + POS_DIM + NER_DIM + CUSTOM_FEAT_DIM
 
         RNN_HIDDEN_SIZE = self.opt['rnn_hidden_size']
         ATTENTION_HIDDEN_SIZE = self.opt['attention_hidden_size']
@@ -46,7 +46,7 @@ class BertyNet(nn.Module):
                 self._glove_fixed_embeddings = glove_fixed_embeddings
 
         else:
-            self._glove_embeddings = nn.Embedding(self.opt['vocab_size'], GLOVE_FEAT_DIM, padding_idx=0)
+            self._glove_embeddings = nn.Embedding(self.opt['vocab_size'], GLOVE_DIM, padding_idx=0)
 
         self.bert_model = BertModel.from_pretrained('bert-base-uncased')
         if self.use_cuda:
@@ -57,17 +57,22 @@ class BertyNet(nn.Module):
 
         self._pos_embeddings = nn.Embedding(POS_SIZE, POS_DIM, padding_idx=0)
         self._ner_embeddings = nn.Embedding(NER_SIZE, NER_DIM, padding_idx=0)
-        self._universal_node = nn.Parameter(torch.zeros(1, TOTAL_DIM))
+
+        self._word_attention = FullAttention(GLOVE_DIM, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE,
+                                             use_cuda=self.use_cuda)
+
+        init_input_size = TOTAL_DIM + GLOVE_DIM
+        self._universal_node = nn.Parameter(torch.zeros(1, init_input_size))
         nn.init.xavier_normal_(self._universal_node)
 
-        cur_input_size = TOTAL_DIM
+        cur_input_size = init_input_size
         self._low_info_lstm = StackedBRNN(cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
         cur_input_size = 2 * RNN_HIDDEN_SIZE
         self._high_info_lstm = StackedBRNN(cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
         cur_input_size = 2 * (2 * RNN_HIDDEN_SIZE)
         self._full_info_lstm = StackedBRNN(cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
 
-        attention_input_size = 3 * (2 * RNN_HIDDEN_SIZE)
+        attention_input_size = 2 * (2 * RNN_HIDDEN_SIZE) + init_input_size
         self._low_attention = FullAttention(
                 attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
         self._high_attention = FullAttention(
@@ -79,7 +84,7 @@ class BertyNet(nn.Module):
         self._fusion_lstm = StackedBRNN(
                 cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
 
-        self_attention_input_size = 2 * RNN_HIDDEN_SIZE + TOTAL_DIM
+        self_attention_input_size = 2 * RNN_HIDDEN_SIZE + init_input_size
         self._self_attention = FullAttention(
                 self_attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
 
@@ -221,13 +226,10 @@ class BertyNet(nn.Module):
         context_pos_emb = self._pos_embeddings(context_pos_ids)
         context_ner_emb = self._ner_embeddings(context_ner_ids)
 
-        u_node = self._universal_node.repeat(new_batch_size, 1, 1)
-
-        cat_question = torch.cat(
-                [question_glove_emb, bert_question_fixed, question_pos_emb, question_ner_emb, question_features], dim=2)
-        cat_context = torch.cat(
-                [context_glove_emb, bert_context_fixed, context_pos_emb, context_ner_emb, context_features], dim=2)
-        cat_input = torch.cat([cat_question, u_node, cat_context], dim=1)
+        cat_question_feat = torch.cat(
+                [question_pos_emb, question_ner_emb, question_features], dim=2)
+        cat_context_feat = torch.cat(
+                [context_pos_emb, context_ner_emb, context_features], dim=2)
 
         answer_start, answer_end, plaus_answer_start, plaus_answer_end, has_answer = None, None, None, None, None
         if not evaluation:
@@ -254,13 +256,7 @@ class BertyNet(nn.Module):
             plaus_answer_start[has_answer_ind] += 1
             plaus_answer_end[has_answer_ind] += 1
 
-        if self.use_cuda:
-            cat_input = cat_input.cuda()
-            cat_mask = cat_mask.cuda()
-            question_mask = question_mask.cuda()
-            context_mask = context_mask.cuda()
-
-            if not evaluation:
+            if self.use_cuda:
                 answer_start = answer_start.cuda()
                 answer_end = answer_end.cuda()
                 plaus_answer_start = plaus_answer_start.cuda()
@@ -268,7 +264,12 @@ class BertyNet(nn.Module):
                 has_answer = has_answer.cuda()
 
         return {
-            'cat_input': cat_input,
+            'question_glove': question_glove_emb,
+            'context_glove': context_glove_emb,
+            'cat_question_feat': cat_question_feat,
+            'cat_context_feat': cat_context_feat,
+            'question_bert': bert_question_fixed,
+            'context_bert': bert_context_fixed,
             'cat_mask': cat_mask,
             'question_mask': question_mask,
             'context_mask': context_mask,
@@ -296,6 +297,11 @@ class BertyNet(nn.Module):
                 orig_to_tok_map.append(len(wp_tokens))
                 wp_tokens.extend(wp_tokenized)
             indexed_wp_tokens = self.tokenizer.convert_tokens_to_ids(wp_tokens)
+            if len(indexed_wp_tokens) > MAX_SEQ_LEN - 2:
+                indexed_wp_tokens = torch.tensor(indexed_wp_tokens)
+                indexed_wp_tokens = indexed_wp_tokens[orig_to_tok_map]
+                orig_to_tok_map = list(range(len(indexed_wp_tokens)))
+                indexed_wp_tokens = indexed_wp_tokens.tolist()
             return indexed_wp_tokens, orig_to_tok_map
 
         def truncate_sequence(seq_tokens, mapping, desired_len):
@@ -399,11 +405,26 @@ class BertyNet(nn.Module):
                mask_good_ex
 
     def _encode_forward(self, prepared_input):
-        cat_input = prepared_input['cat_input']
         cat_mask = prepared_input['cat_mask']
         question_mask = prepared_input['question_mask']
         context_mask = prepared_input['context_mask']
         question_len = prepared_input['question_len']
+        question_glove = prepared_input['question_glove']
+        context_glove = prepared_input['context_glove']
+        question_bert = prepared_input['question_bert']
+        context_bert = prepared_input['context_bert']
+        cat_question_feat = prepared_input['cat_question_feat']
+        cat_context_feat = prepared_input['cat_context_feat']
+
+        word_attention_context, word_attention_question = self._word_attention(context_glove, question_glove,
+                                                                               question_glove, question_mask[:, :-1],
+                                                                               context_glove, context_mask[:, 1:])
+        u_node = self._universal_node.repeat(question_glove.size(0), 1, 1)
+        cat_question = torch.cat(
+                [question_glove, question_bert, cat_question_feat, word_attention_question], dim=2)
+        cat_context = torch.cat(
+                [context_glove, context_bert, cat_context_feat, word_attention_context], dim=2)
+        cat_input = torch.cat([cat_question, u_node, cat_context], dim=1)
 
         low_level_info = self._low_info_lstm(cat_input, cat_mask)
         high_level_info = self._high_info_lstm(low_level_info, cat_mask)
@@ -411,8 +432,7 @@ class BertyNet(nn.Module):
         lh_cat_info = torch.cat([low_level_info, high_level_info], dim=2)
         full_info = self._full_info_lstm(lh_cat_info, cat_mask)
 
-        deep_cat_how = torch.cat(
-                [low_level_info, high_level_info, full_info], dim=2)
+        deep_cat_how = torch.cat([cat_input, low_level_info, high_level_info], dim=2)
 
         deep_question_how = deep_cat_how[:, :question_len + 1]
         low_question_info = low_level_info[:, :question_len + 1]
@@ -443,7 +463,7 @@ class BertyNet(nn.Module):
         attention_cat_how = torch.cat(
                 [attention_question_how[:, :-1], attention_context_how], dim=1)
 
-        total_cat_how = torch.cat([deep_cat_how, attention_cat_how], dim=2)
+        total_cat_how = torch.cat([low_level_info, high_level_info, full_info, attention_cat_how], dim=2)
         fused_cat_how = self._fusion_lstm(total_cat_how, cat_mask)
 
         fully_fused_cat_how = torch.cat([cat_input, fused_cat_how], dim=2)
