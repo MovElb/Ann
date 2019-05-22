@@ -4,6 +4,7 @@ import ujson
 from aiohttp import web
 
 from qaweb.connectors import SaaSConnector
+from qaweb.custom_prepro import CustomPrepro
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,8 @@ async def search_handler(request: web.Request) -> web.Response:
     except ValueError:
         raise web.HTTPBadRequest(text="JSON is malformed")
 
+    question = request_body['question']
+
     saas: SaaSConnector = request.app['saas']
     if request_body['text']:
         texts = [request_body['text']]
@@ -21,5 +24,9 @@ async def search_handler(request: web.Request) -> web.Response:
         query = request_body['query']
         texts = saas.get_documents(query)
 
+    prepro: CustomPrepro = request.app['prepro']
+    preprocessed_data = []
+    for text in texts:
+        preprocessed_data.append(prepro.prepro(text, question))
 
-    return web.Response(text='hello, world')
+    return web.json_response({'data': preprocessed_data})

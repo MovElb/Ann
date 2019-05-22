@@ -6,6 +6,7 @@ import yaml
 from aiohttp import web
 import click
 
+from qaweb.custom_prepro import CustomPrepro
 from .connectors import setup_connectors
 from .schemas import ConfigSchema
 from .views import search_handler
@@ -28,13 +29,14 @@ def read_config(config_path: str) -> Dict:
 
 
 def setup_routes(app: web.Application) -> None:
-    app.router.add_get('/search', search_handler)
+    app.router.add_get('/api/search', search_handler)
 
 
 async def create_app(config_path: str) -> web.Application:
     app = web.Application()
 
     app["config"] = read_config(config_path)
+    app["prepro"] = CustomPrepro()
 
     setup_routes(app)
     setup_connectors(app)
