@@ -15,18 +15,17 @@ async def search_handler(request: web.Request) -> web.Response:
     except ValueError:
         raise web.HTTPBadRequest(text="JSON is malformed")
 
-    question = request_body['question']
+    query = request_body['query']
 
     saas: SaaSConnector = request.app['saas']
     if request_body['text']:
         texts = [request_body['text']]
     else:
-        query = request_body['query']
         texts = saas.get_documents(query)
 
     prepro: CustomPrepro = request.app['prepro']
     preprocessed_data = []
     for text in texts:
-        preprocessed_data.append(prepro.prepro(text, question))
+        preprocessed_data.append(prepro.prepro(text, query))
 
     return web.json_response({'data': preprocessed_data})
