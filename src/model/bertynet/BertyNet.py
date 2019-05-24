@@ -84,7 +84,7 @@ class BertyNet(nn.Module):
         self._fusion_lstm = StackedBRNN(
                 cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
 
-        self_attention_input_size = 2 * RNN_HIDDEN_SIZE + init_input_size + 6 * (2 * RNN_HIDDEN_SIZE)
+        self_attention_input_size = 2 * RNN_HIDDEN_SIZE + init_input_size + 3 * (2 * RNN_HIDDEN_SIZE)
         self._self_attention = FullAttention(
                 self_attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
 
@@ -452,7 +452,7 @@ class BertyNet(nn.Module):
         total_cat_how = torch.cat([low_level_info, high_level_info, full_info, attention_cat_how], dim=2)
         fused_cat_how = self._fusion_lstm(total_cat_how, cat_mask)
 
-        fully_fused_cat_how = torch.cat([cat_input, total_cat_how, fused_cat_how], dim=2)
+        fully_fused_cat_how = torch.cat([cat_input, attention_cat_how, fused_cat_how], dim=2)
         attention_fully_fused_cat_how = self._self_attention(
                 fully_fused_cat_how, fully_fused_cat_how, fully_fused_cat_how, cat_mask)
 
