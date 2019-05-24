@@ -84,7 +84,7 @@ class BertyNet(nn.Module):
         self._fusion_lstm = StackedBRNN(
                 cur_input_size, RNN_HIDDEN_SIZE, 1, dropout_rate=DROPOUT_RATE)
 
-        self_attention_input_size = 2 * RNN_HIDDEN_SIZE + init_input_size
+        self_attention_input_size = 2 * RNN_HIDDEN_SIZE + init_input_size + 6 * (2 * RNN_HIDDEN_SIZE)
         self._self_attention = FullAttention(
                 self_attention_input_size, ATTENTION_HIDDEN_SIZE, dropout_rate=DROPOUT_RATE, use_cuda=self.use_cuda)
 
@@ -103,7 +103,13 @@ class BertyNet(nn.Module):
         self._plausible_answer_pointer = PointerNet(cur_input_size)
 
         cur_input_size = 4 * (2 * RNN_HIDDEN_SIZE)
-        self._answer_verifier = nn.Sequential(nn.Dropout(DROPOUT_RATE), nn.Linear(cur_input_size, 2))
+
+        VERIFIER_HIDDEN_SIZE = RNN_HIDDEN_SIZE
+        self._answer_verifier = nn.Sequential(nn.AlphaDropout(DROPOUT_RATE),
+                                              nn.Linear(cur_input_size, VERIFIER_HIDDEN_SIZE),
+                                              nn.SELU(),
+                                              nn.Linear(VERIFIER_HIDDEN_SIZE, 2)
+                                              )
 
     def prepare_input(self, batch_data, evaluation=False):
         """Converts token ids to glove, bert, pos, ner embeddings and concatenates all features.
@@ -446,7 +452,7 @@ class BertyNet(nn.Module):
         total_cat_how = torch.cat([low_level_info, high_level_info, full_info, attention_cat_how], dim=2)
         fused_cat_how = self._fusion_lstm(total_cat_how, cat_mask)
 
-        fully_fused_cat_how = torch.cat([cat_input, fused_cat_how], dim=2)
+        fully_fused_cat_how = torch.cat([cat_input, total_cat_how, fused_cat_how], dim=2)
         attention_fully_fused_cat_how = self._self_attention(
                 fully_fused_cat_how, fully_fused_cat_how, fully_fused_cat_how, cat_mask)
 

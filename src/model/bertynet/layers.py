@@ -16,7 +16,7 @@ def variational_dropout(x, dropout_rate=0, training=False, use_cuda=False):
     return dropout_mask.unsqueeze(1).expand_as(x) * x
 
 
-def dropout(x, dropout_rate=0, training=False, dropout_type='variational', use_cuda=False):
+def dropout(x, dropout_rate=0, training=False, dropout_type='alpha', use_cuda=False):
     """
     Args:
         x (Tensor): (batch * len * input_size) or (any other shape)
@@ -37,12 +37,13 @@ def dropout(x, dropout_rate=0, training=False, dropout_type='variational', use_c
 
 class StackedBRNN(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers,
-                 dropout_rate=0, dropout_output=False, rnn_type=nn.LSTM,
+                 dropout_rate=0, dropout_type='alpha', dropout_output=False, rnn_type=nn.LSTM,
                  concat_layers=False, padding=False):
         super(StackedBRNN, self).__init__()
         self.padding = padding
         self.dropout_output = dropout_output
         self.dropout_rate = dropout_rate
+        self.dropout_type = dropout_type
         self.num_layers = num_layers
         self.concat_layers = concat_layers
         self._rnns = nn.ModuleList()
@@ -77,9 +78,11 @@ class StackedBRNN(nn.Module):
 
             # Apply dropout to hidden input
             if self.dropout_rate > 0:
-                rnn_input = F.dropout(rnn_input,
-                                      p=self.dropout_rate,
-                                      training=self.training)
+                # rnn_input = F.dropout(rnn_input,
+                #                       p=self.dropout_rate,
+                #                       training=self.training)
+                rnn_input = dropout(rnn_input, dropout_rate=self.dropout_rate,
+                                    training=self.training, dropout_type=self.dropout_type)
             # Forward
             rnn_output = self._rnns[i](rnn_input)[0]
             outputs.append(rnn_output)
@@ -127,9 +130,11 @@ class StackedBRNN(nn.Module):
 
             # Apply dropout to input
             if self.dropout_rate > 0:
-                dropout_input = F.dropout(rnn_input.data,
-                                          p=self.dropout_rate,
-                                          training=self.training)
+                # dropout_input = F.dropout(rnn_input,
+                #                       p=self.dropout_rate,
+                #                       training=self.training)
+                dropout_input = dropout(rnn_input, dropout_rate=self.dropout_rate,
+                                        training=self.training, dropout_type=self.dropout_type)
                 rnn_input = nn.utils.rnn.PackedSequence(dropout_input,
                                                         rnn_input.batch_sizes)
             outputs.append(self._rnns[i](rnn_input)[0])
@@ -164,7 +169,7 @@ class StackedBRNN(nn.Module):
 
 
 class FullAttention(nn.Module):
-    def __init__(self, input_size, hidden_size, dropout_rate=0, dropout_type='variational', use_cuda=True):
+    def __init__(self, input_size, hidden_size, dropout_rate=0, dropout_type='alpha', use_cuda=True):
         super(FullAttention, self).__init__()
         self.use_cuda = use_cuda
         self.dropout_rate = dropout_rate
@@ -207,7 +212,7 @@ class FullAttention(nn.Module):
 
 
 class Summarize(nn.Module):
-    def __init__(self, input_size, dropout_rate=0, dropout_type='variational', use_cuda=True):
+    def __init__(self, input_size, dropout_rate=0, dropout_type='alpha', use_cuda=True):
         super(Summarize, self).__init__()
         self.use_cuda = use_cuda
         self.dropout_rate = dropout_rate
@@ -228,7 +233,7 @@ class Summarize(nn.Module):
 
 
 class PointerNet(nn.Module):
-    def __init__(self, input_size, dropout_rate=0, dropout_type='variational', use_cuda=True):
+    def __init__(self, input_size, dropout_rate=0, dropout_type='alpha', use_cuda=True):
         super(PointerNet, self).__init__()
         self.use_cuda = use_cuda
         self.dropout_rate = dropout_rate
