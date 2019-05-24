@@ -134,12 +134,19 @@ class BertyModel:
         spans = batch[10]
         predictions = []
         plausible_predictions = []
+        all_start_offset, all_end_offset = [], []
+        all_start_poffset, all_end_poffset = [], []
         for i in range(start_idxs.size(0)):
             start_idx, end_idx = start_idxs[i].item(), end_idxs[i].item()
             start_offset, end_offset = spans[i][start_idx][0], spans[i][end_idx][1]
 
             start_pidx, end_pidx = start_pidxs[i].item(), end_pidxs[i].item()
             start_poffset, end_poffset = spans[i][start_pidx][0], spans[i][end_pidx][1]
+
+            all_start_offset.append(start_offset)
+            all_end_offset.append(end_offset)
+            all_start_poffset.append(start_poffset)
+            all_end_poffset.append(end_poffset)
 
             predictions.append(contexts[i][start_offset:end_offset])
             plausible_predictions.append(contexts[i][start_poffset:end_poffset])
@@ -153,7 +160,11 @@ class BertyModel:
             'score': score.tolist(),
             'plausible_score': plausible_score.tolist(),
             'is_answerable': is_answerable.tolist(),
-            'has_ans_score': has_answer_score
+            'has_ans_score': has_answer_score,
+            'start_offset': all_start_offset,
+            'end_offset': all_end_offset,
+            'start_poffset': all_start_poffset,
+            'end_poffset': all_end_poffset
         }
 
     def save(self, filename, epoch):
