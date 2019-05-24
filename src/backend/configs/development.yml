@@ -8,6 +8,6 @@ saas:
   read_timeout: 10
 
 net:
-  url: ""
+  url: "http://10.132.0.4/get_answer"
   conn_timeout: 10
   read_timeout: 10

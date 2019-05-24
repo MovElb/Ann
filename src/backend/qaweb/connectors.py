@@ -52,8 +52,10 @@ class NetConnector(BaseConnector):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
-    async def get_answer(self, query, texts) -> str:
-        pass
+    async def get_answer(self, preprocessed) -> str:
+        async with self._sess.get(self._url, data={'data': preprocessed}) as resp:
+            resp.raise_for_status()
+            return await resp.json()
 
 
 def setup_connectors(app: web.Application) -> None:
