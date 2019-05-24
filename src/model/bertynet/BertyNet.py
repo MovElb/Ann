@@ -286,6 +286,19 @@ class BertyNet(nn.Module):
         CLS_IND = self.tokenizer.convert_tokens_to_ids(['[CLS]'])[0]
         SEP_IND = self.tokenizer.convert_tokens_to_ids(['[SEP]'])[0]
 
+        def split_into_chunks(token_ids, question_tokens_len):
+            MAX_AVAIL_LEN = MAX_SEQ_LEN - 3 - question_tokens_len
+            chunk_len = len(token_ids)
+            chunks = [token_ids]
+            while chunk_len > MAX_AVAIL_LEN:
+                new_chunks = []
+                for chunk in chunks:
+                    half_len = int(len(chunk) / 2)
+                    new_chunks += [chunk[:half_len], chunk[half_len:]]
+                chunks = new_chunks
+                chunk_len = max(map(len, chunks))
+            return chunks
+
         def get_wordpiece_tokenization(tokens):
             UNK = '[UNK]'
             wp_tokens = []
@@ -297,20 +310,9 @@ class BertyNet(nn.Module):
                 orig_to_tok_map.append(len(wp_tokens))
                 wp_tokens.extend(wp_tokenized)
             indexed_wp_tokens = self.tokenizer.convert_tokens_to_ids(wp_tokens)
-            if len(indexed_wp_tokens) > MAX_SEQ_LEN - 2:
-                indexed_wp_tokens = torch.tensor(indexed_wp_tokens)
-                indexed_wp_tokens = indexed_wp_tokens[orig_to_tok_map]
-                orig_to_tok_map = list(range(len(indexed_wp_tokens)))
-                indexed_wp_tokens = indexed_wp_tokens.tolist()
             return indexed_wp_tokens, orig_to_tok_map
 
-        def truncate_sequence(seq_tokens, mapping, desired_len):
-            while len(seq_tokens) > desired_len:
-                seq_tokens.pop()
-                if mapping[-1] >= len(seq_tokens):
-                    mapping.pop()
-
-        def embed_joint(question_wp_tokens, context_wp_tokens, question_mapping, context_mapping):
+        def embed_joint(question_wp_tokens, context_wp_tokens):
             cat_tokens = [CLS_IND] + question_wp_tokens + [SEP_IND] + context_wp_tokens + [SEP_IND]
             segment_mask = torch.ones(len(cat_tokens), dtype=torch.long)
             segment_mask[:len(question_wp_tokens) + 2] = 0
@@ -318,7 +320,7 @@ class BertyNet(nn.Module):
             tokens_tensor = torch.tensor([cat_tokens])
             segments_tensor = segment_mask.unsqueeze(0)
 
-            if self.use_cuda:
+            if True:
                 tokens_tensor = tokens_tensor.cuda()
                 segments_tensor = segments_tensor.cuda()
 
@@ -327,48 +329,26 @@ class BertyNet(nn.Module):
 
             sum_last_four_layers = torch.sum(torch.cat(encoded_layers[-4:], dim=0), dim=0)
             question_bert_embeddings = sum_last_four_layers[1: len(question_wp_tokens) + 1]
-            question_bert_embeddings = question_bert_embeddings[question_mapping]
-
             context_bert_embeddings = sum_last_four_layers[len(question_wp_tokens) + 2: -1]
-            context_bert_embeddings = context_bert_embeddings[context_mapping]
 
             return question_bert_embeddings, context_bert_embeddings
-
-        def embed_separately(seq_tokens, seq_mapping):
-            cat_tokens = [CLS_IND] + seq_tokens + [SEP_IND]
-            segment_mask = torch.zeros(len(cat_tokens), dtype=torch.long)
-
-            tokens_tensor = torch.tensor([cat_tokens])
-            segments_tensor = segment_mask.unsqueeze(0)
-
-            if self.use_cuda:
-                tokens_tensor = tokens_tensor.cuda()
-                segments_tensor = segments_tensor.cuda()
-
-            with torch.no_grad():
-                encoded_layers, _ = self.bert_model(tokens_tensor, segments_tensor)
-
-            sum_last_four_layers = torch.sum(torch.cat(encoded_layers[-4:], dim=0), dim=0)
-            seq_embeddings = sum_last_four_layers[1: -1]
-            seq_embeddings = seq_embeddings[seq_mapping]
-
-            return seq_embeddings
 
         question_wp_tokens, question_mapping = get_wordpiece_tokenization(question_tokens)
         context_wp_tokens, context_mapping = get_wordpiece_tokenization(context_tokens)
 
-        cat_len = len(question_wp_tokens) + len(context_wp_tokens)
-        if cat_len + 3 <= MAX_SEQ_LEN:
-            question_embeddings, context_embeddings = embed_joint(question_wp_tokens, context_wp_tokens,
-                                                                  question_mapping, context_mapping)
-        else:
-            truncate_sequence(context_wp_tokens, context_mapping, MAX_SEQ_LEN - 2)
-            if answer_end_idx is not None and answer_end_idx >= len(context_mapping):
-                return None, None
-            truncate_sequence(question_wp_tokens, question_mapping, MAX_SEQ_LEN - 2)
-
-            question_embeddings = embed_separately(question_wp_tokens, question_mapping)
-            context_embeddings = embed_separately(context_wp_tokens, context_mapping)
+        context_wp_chunks = split_into_chunks(context_wp_tokens, len(question_wp_tokens))
+        full_context_embeddings = []
+        full_question_embeddings = []
+        for context_chunk in context_wp_chunks:
+            question_embeddings, context_embeddings = embed_joint(question_wp_tokens, context_chunk)
+            full_context_embeddings.append(context_embeddings)
+            full_question_embeddings.append(question_embeddings)
+        question_embeddings = torch.stack(full_question_embeddings).mean(dim=0)
+        context_embeddings = torch.cat(full_context_embeddings)
+        if answer_end_idx is not None:
+            assert answer_end_idx < len(context_mapping), 'Something went wrong while getting BERT embeddings...'
+        question_embeddings = question_embeddings[question_mapping]
+        context_embeddings = context_embeddings[context_mapping]
 
         return question_embeddings, context_embeddings
 
