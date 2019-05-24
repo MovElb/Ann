@@ -1,0 +1,119 @@
+@import "https://fonts.googleapis.com/css?family=Lato:300";
+@import "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.0.3/css/font-awesome.min.css";
+
+* { box-sizing: border-box; }
+
+body {
+	font-family: "Lato", "FontAwesome", sans-serif;
+	background-color: #FFFFFF;
+	margin: 0;
+}
+
+main {
+	max-width: 900px;
+	margin: 0 auto;
+	text-align: center;
+}
+
+h1 {
+  margin: 4rem auto;
+	max-width: 600px;
+	padding: 5px;
+}
+
+/* form  */
+.form {
+  margin: 4rem auto;
+	max-width: 600px;
+	padding: 5px;
+}
+.form input[type=text]{
+  width: 100%;
+  padding: 12px 20px;
+  margin: 8px 0;
+  display: inline-block;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.form textarea{
+  width: 100%;
+  padding: 12px 20px;
+  margin: 8px 0;
+  display: inline-block;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.form textarea:disabled {
+  background-color: #CFD8DC;
+}
+
+.form input[type=submit] {
+  width: 100%;
+  background-color: #263238;
+  color: white;
+  padding: 14px 20px;
+  margin: 8px 0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.form input[type=checkbox] {
+  position: absolute;
+  z-index: -1;
+  opacity: 0;
+  margin: 10px 0 0 20px;
+}
+
+.form input[type=checkbox] + label {
+  position: relative;
+  padding: 0 0 0 60px;
+  cursor: pointer;
+}
+
+.form input[type=checkbox] + label:before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: 0;
+  width: 50px;
+  height: 26px;
+  border-radius: 13px;
+  background: #CDD1DA;
+  box-shadow: inset 0 2px 3px rgba(0,0,0,.2);
+  transition: .2s;
+}
+
+.form input[type=checkbox] + label:after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 10px;
+  background: #FFF;
+  box-shadow: 0 2px 5px rgba(0,0,0,.3);
+  transition: .2s;
+}
+
+.form input[type=checkbox]:checked + label:before {
+  background: #555555;
+}
+
+.form input[type=checkbox]:checked + label:after {
+  left: 26px;
+}
+
+.form input[type=checkbox]:focus + label:before {
+  box-shadow: inset 0 2px 3px rgba(0,0,0,.2), 0 0 0 3px rgba(255,255,0,.7);
+}
+
+.error-message {
+  margin-top: 0.2em;
+  color: #B94A48;
+}
