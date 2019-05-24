@@ -78,11 +78,11 @@ class StackedBRNN(nn.Module):
 
             # Apply dropout to hidden input
             if self.dropout_rate > 0:
-                rnn_input = F.dropout(rnn_input,
-                                      p=self.dropout_rate,
-                                      training=self.training)
-                # rnn_input = dropout(rnn_input, dropout_rate=self.dropout_rate,
-                #                     training=self.training, dropout_type=self.dropout_type)
+                # rnn_input = F.dropout(rnn_input,
+                #                       p=self.dropout_rate,
+                #                       training=self.training)
+                rnn_input = dropout(rnn_input, dropout_rate=self.dropout_rate,
+                                    training=self.training, dropout_type=self.dropout_type)
             # Forward
             rnn_output = self._rnns[i](rnn_input)[0]
             outputs.append(rnn_output)
@@ -130,11 +130,11 @@ class StackedBRNN(nn.Module):
 
             # Apply dropout to input
             if self.dropout_rate > 0:
-                dropout_input = F.dropout(rnn_input,
-                                      p=self.dropout_rate,
-                                      training=self.training)
-                # dropout_input = dropout(rnn_input, dropout_rate=self.dropout_rate,
-                #                         training=self.training, dropout_type=self.dropout_type)
+                # dropout_input = F.dropout(rnn_input,
+                #                       p=self.dropout_rate,
+                #                       training=self.training)
+                dropout_input = dropout(rnn_input.data, dropout_rate=self.dropout_rate,
+                                        training=self.training, dropout_type=self.dropout_type)
                 rnn_input = nn.utils.rnn.PackedSequence(dropout_input,
                                                         rnn_input.batch_sizes)
             outputs.append(self._rnns[i](rnn_input)[0])
