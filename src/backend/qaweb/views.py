@@ -12,13 +12,14 @@ logger = logging.getLogger(__name__)
 async def search_handler(request: web.Request) -> web.Response:
     try:
         request_body = await request.json(loads=ujson.loads)
+        query = request_body['query']
     except ValueError:
         raise web.HTTPBadRequest(text="JSON is malformed")
 
-    query = request_body['query']
+    # return web.json_response(request_body)
 
     saas: SaaSConnector = request.app['saas']
-    if request_body['text']:
+    if request_body.get('text'):
         texts = [request_body['text']]
     else:
         texts = saas.get_documents(query)
@@ -27,5 +28,7 @@ async def search_handler(request: web.Request) -> web.Response:
     preprocessed_data = []
     for text in texts:
         preprocessed_data.append(prepro.prepro(text, query))
+
+
 
     return web.json_response({'data': preprocessed_data})

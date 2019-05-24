@@ -27,7 +27,7 @@ services:
     networks:
       - backend
     volumes:
-#      - ./configs/nginx.conf:/etc/nginx/nginx.conf
+      - ../frontend:/var/www/seann.ru
       - aiohttp-sockets:/var/lib/aiohttp
     depends_on:
       - qaweb

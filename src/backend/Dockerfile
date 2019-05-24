@@ -9,10 +9,10 @@ RUN python -m spacy download en
 ADD setup.py /qaweb
 ADD ./qaweb /qaweb/qaweb/
 ADD ./configs /qaweb/configs/
-ADD meta.msgpack /qaweb/squad2_preprocessed/
+
+RUN mkdir -p /qaweb/squad2_preprocessed \
+    && curl -SL https://storage.googleapis.com/seann/meta.msgpack -o /qaweb/squad2_preprocessed/meta.msgpack
 
 RUN pip install -e /qaweb
-
-EXPOSE 8080
 
 WORKDIR /qaweb
