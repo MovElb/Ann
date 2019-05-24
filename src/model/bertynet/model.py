@@ -6,8 +6,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.nn.utils import clip_grad_norm_
 
-from BertyNet import BertyNet
-from utils import AverageMeter
+from bertynet.BertyNet import BertyNet
+from bertynet.utils import AverageMeter
 
 logger = logging.getLogger(__name__)
 

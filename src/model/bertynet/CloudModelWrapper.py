@@ -5,8 +5,8 @@ from functools import partial
 import torch
 
 import msgpack
-from model import BertyModel
-from BatchGen import BatchGen
+from bertynet.model import BertyModel
+from bertynet.BatchGen import BatchGen
 
 
 class CloudModelWrapper:
