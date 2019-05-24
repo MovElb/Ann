@@ -22,31 +22,35 @@
  <body>
    <h1>SeAnn - найдётся хоть что-то!</h1>
   <div class="form">
-    <form id="custom_request" method="post">
+    <form id="custom_request_id" method="post">
       <div>
         <label for="question_id">Введите ваш вопрос:</label>
-        <input type="text" id="question_id" name="question" placeholder="Ваш вопрос" required>
+        <input type="text" id="question_id" name="query" placeholder="Ваш вопрос" required>
       </div>
       </br>
       <div>
-        <input type="checkbox" id="custom_context_id" name="custom_context" value="True" text="bla">
+        <input type="checkbox" id="custom_context_id" name="custom_context" value="on">
         <label for="custom_context_id">Использовать предоставленный контекст</label>
       </div>
       </br>
       <div>
         <label for="context_id">Введите ваш контекст:</label>
         </br>
-        <textarea disabled id="context_id" name="context" placeholder="Ваш контекст" rows="5"></textarea>
+        <textarea disabled id="context_id" name="text" placeholder="Ваш контекст" rows="5"></textarea>
       </div>
-      <input type="submit" value="Найти ответ">
+      <input type="submit" id="submit_id" value="Найти ответ">
     </form>
+  </div>
+  <div class="results">
+    <h2 class="results__heading">Form Data</h2>
+    <pre class="results__display-wrapper"><code class="results__display">
   </div>
  </body>
 </html>
 
 
-
-    <script  src="js/index.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+    <script language="JavaScript" type="text/javascript" src="js/index.js"></script>
 
 
 
