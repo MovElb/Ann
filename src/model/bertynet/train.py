@@ -70,6 +70,8 @@ def setup():
     parser.add_argument('--max_pred_len', type=int, default=15)
     parser.add_argument('--threshold_ans', type=float, default=0.6)
 
+    parser.add_argument('--max_train_len', type=int, default=700)
+
     parser.add_argument('--decay_period', type=int, default=10)
     parser.add_argument('--decay', type=float, default=0.75)
 
@@ -159,6 +161,10 @@ def main():
     args, log = setup()
     log.info('[Program starts. Loading data...]')
     train_data, dev_data, dev_answer_info, embeddings, opt = load_data(vars(args))
+    initial_train_size = len(train_data)
+    train_data = list(filter(lambda x: len(x[1]) < opt['max_train_len'], train_data))
+    log.info('Dropped {} train samples due to max_train_len = {}'.format(len(train_data) - initial_train_size,
+                                                                         opt['max_train_len']))
     log.info(opt)
     log.info('[Data loaded.]')
 
