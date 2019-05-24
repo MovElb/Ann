@@ -2,14 +2,11 @@
 // set required attribute as true if checkbox is checked
 var chk = document.getElementById("custom_context_id");
 var context = document.getElementById("context_id");
-
 chk.addEventListener("click", enable);
-
 function enable() {
     context.disabled = !this.checked;
     context.required = true;
 }
-
 
 // replace validation bubble with red warning
 function replaceValidationUI( form ) {
@@ -44,3 +41,60 @@ var forms = document.querySelectorAll( "form" );
 for ( var i = 0; i < forms.length; i++ ) {
     replaceValidationUI( forms[ i ] );
 }
+
+// send json request
+const isValidElement = element => {
+  return element.name && element.value && !element.disabled;
+};
+const isValidValue = element => {
+  return (!['checkbox', 'radio'].includes(element.type) || element.checked);
+};
+const formToJSON = elements => [].reduce.call(elements, (data, element) => {
+  if (isValidElement(element) && isValidValue(element)) {
+      data[element.name] = element.value;
+  }
+  return data;
+}, {});
+
+const handleFormSubmit = event => {
+  event.preventDefault();
+  const data = formToJSON(form.elements);
+
+  // Demo only: print the form data onscreen as a formatted JSON object.
+  const dataContainer = document.getElementsByClassName('results__display')[0];
+  dataContainer.textContent = JSON.stringify(data, null, "  ");
+
+  fetch('https://seann.ru/api/search', {
+    method: 'post',
+    mode: 'cors',
+    // withCredentials: false,
+    headers: {
+      "Content-type": "application/json"
+    },
+    body: JSON.stringify(data)
+  })
+  .then(function (json) {
+    console.log('Request succeeded with JSON response', json);
+    // const dataContainer = document.getElementsByClassName('results__display')[0];
+    dataContainer.textContent = JSON.stringify(json, null, "  ");
+  })
+  .catch(function (error) {
+    console.log('Request failed', error);
+  });
+};
+
+const form = document.getElementById( "custom_request_id" );
+form.addEventListener('submit', handleFormSubmit);
+// dlers.
+//   xhr.onload = function() {
+//     var text = xhr.responseText;
+//     var title = getTitle(text);
+//     alert('Response from CORS request to ' + url + ': ' + title);
+//   };
+//
+//   xhr.onerror = function() {
+//     alert('Woops, there was an error making the request.');
+//   };
+//
+//   xhr.send(data);
+// }
