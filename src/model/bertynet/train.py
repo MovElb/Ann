@@ -9,9 +9,9 @@ from shutil import copyfile
 import msgpack
 import torch
 
-from BatchGen import BatchGen
-from model import BertyModel
-from utils import str2bool, score
+from bertynet.BatchGen import BatchGen
+from bertynet.model import BertyModel
+from bertynet.utils import str2bool, score
 
 
 def setup():

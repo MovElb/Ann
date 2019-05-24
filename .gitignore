@@ -1,6 +1,12 @@
+# Data for model
 data/
-src/model/*.msgpack
+*.msgpack
 *squad2_preprocessed/
+
+# SSL
+*.pem
+*.key
+*.crt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
