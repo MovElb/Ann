@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pytorch_pretrained_bert import BertModel, BertTokenizer
 
-from bertynet.layers import FullAttention, StackedBRNN, Summarize, PointerNet
+from layers import FullAttention, StackedBRNN, Summarize, PointerNet
 
 
 class BertyNet(nn.Module):

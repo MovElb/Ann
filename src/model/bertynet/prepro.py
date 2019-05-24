@@ -8,7 +8,7 @@ import argparse
 import collections
 import multiprocessing
 from multiprocessing import Pool
-from bertynet.utils import str2bool
+from utils import str2bool
 from tqdm import tqdm
 from functools import partial
 import logging
