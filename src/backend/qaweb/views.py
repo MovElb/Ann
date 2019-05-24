@@ -1,4 +1,5 @@
 import logging
+import sys
 
 import ujson
 from aiohttp import web
@@ -16,19 +17,19 @@ async def search_handler(request: web.Request) -> web.Response:
     except ValueError:
         raise web.HTTPBadRequest(text="JSON is malformed")
 
-    saas: SaaSConnector = request.app['saas']
-    if request_body.get('text'):
-        texts = [request_body['text']]
-    else:
-        texts = saas.get_documents(query)
-
-    prepro: CustomPrepro = request.app['prepro']
-    preprocessed_data = []
-    for text in texts:
-        preprocessed_data.append(prepro.prepro(text, query))
-
-    net: NetConnector = request.app['net']
-    answers = await net.get_answer(preprocessed_data)
+    # saas: SaaSConnector = request.app['saas']
+    # if request_body.get('text'):
+    #     texts = [request_body['text']]
+    # else:
+    #     texts = saas.get_documents(query)
+    #
+    # prepro: CustomPrepro = request.app['prepro']
+    # preprocessed_data = []
+    # for text in texts:
+    #     preprocessed_data.append(prepro.prepro(text, query))
+    #
+    # net: NetConnector = request.app['net']
+    # answers = await net.get_answer(preprocessed_data)
 
     return web.json_response(request_body)
 

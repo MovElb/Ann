@@ -29,7 +29,7 @@ def read_config(config_path: str) -> Dict:
 
 
 def setup_routes(app: web.Application) -> None:
-    app.router.add_get('/api/search', search_handler)
+    app.router.add_post('/api/search', search_handler)
 
 
 async def create_app(config_path: str) -> web.Application:
