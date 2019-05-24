@@ -64,10 +64,19 @@ const handleFormSubmit = event => {
   const dataContainer = document.getElementsByClassName('results__display')[0];
   dataContainer.textContent = JSON.stringify(data, null, "  ");
 
+  // var xhr = new XMLHttpRequest()
+  // if(xhr)
+  //   {
+  //     xhr.open('POST', https://seann.ru/api/search, true);
+  //     // xhr.setRequestHeader('X-PINGOTHER', 'pingpong');
+  //     xhr.setRequestHeader('Content-Type', 'application/json');
+  //     // xhr.onreadystatechange = handler;
+  //     xhr.send(JSON.stringify(data));
+  //   }
   fetch('https://seann.ru/api/search', {
     method: 'post',
     mode: 'cors',
-    // withCredentials: false,
+    withCredentials: false,
     headers: {
       "Content-type": "application/json"
     },
