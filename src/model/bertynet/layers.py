@@ -16,7 +16,7 @@ def variational_dropout(x, dropout_rate=0, training=False, use_cuda=False):
     return dropout_mask.unsqueeze(1).expand_as(x) * x
 
 
-def dropout(x, dropout_rate=0, training=False, dropout_type='alpha', use_cuda=False):
+def dropout(x, dropout_rate=0, training=False, dropout_type='simple', use_cuda=False):
     """
     Args:
         x (Tensor): (batch * len * input_size) or (any other shape)
@@ -37,7 +37,7 @@ def dropout(x, dropout_rate=0, training=False, dropout_type='alpha', use_cuda=Fa
 
 class StackedBRNN(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers,
-                 dropout_rate=0, dropout_type='alpha', dropout_output=False, rnn_type=nn.LSTM,
+                 dropout_rate=0, dropout_type='simple', dropout_output=False, rnn_type=nn.LSTM,
                  concat_layers=False, padding=False):
         super(StackedBRNN, self).__init__()
         self.padding = padding
@@ -169,7 +169,7 @@ class StackedBRNN(nn.Module):
 
 
 class FullAttention(nn.Module):
-    def __init__(self, input_size, hidden_size, dropout_rate=0, dropout_type='alpha', use_cuda=True):
+    def __init__(self, input_size, hidden_size, dropout_rate=0, dropout_type='simple', use_cuda=True):
         super(FullAttention, self).__init__()
         self.use_cuda = use_cuda
         self.dropout_rate = dropout_rate
@@ -212,7 +212,7 @@ class FullAttention(nn.Module):
 
 
 class Summarize(nn.Module):
-    def __init__(self, input_size, dropout_rate=0, dropout_type='alpha', use_cuda=True):
+    def __init__(self, input_size, dropout_rate=0, dropout_type='simple', use_cuda=True):
         super(Summarize, self).__init__()
         self.use_cuda = use_cuda
         self.dropout_rate = dropout_rate
@@ -233,7 +233,7 @@ class Summarize(nn.Module):
 
 
 class PointerNet(nn.Module):
-    def __init__(self, input_size, dropout_rate=0, dropout_type='alpha', use_cuda=True):
+    def __init__(self, input_size, dropout_rate=0, dropout_type='simple', use_cuda=True):
         super(PointerNet, self).__init__()
         self.use_cuda = use_cuda
         self.dropout_rate = dropout_rate

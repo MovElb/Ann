@@ -104,12 +104,7 @@ class BertyNet(nn.Module):
 
         cur_input_size = 4 * (2 * RNN_HIDDEN_SIZE)
 
-        VERIFIER_HIDDEN_SIZE = RNN_HIDDEN_SIZE
-        self._answer_verifier = nn.Sequential(nn.AlphaDropout(DROPOUT_RATE),
-                                              nn.Linear(cur_input_size, VERIFIER_HIDDEN_SIZE),
-                                              nn.SELU(),
-                                              nn.Linear(VERIFIER_HIDDEN_SIZE, 2)
-                                              )
+        self._answer_verifier = nn.Sequential(nn.Dropout(0.5 * DROPOUT_RATE), nn.Linear(cur_input_size, 2))
 
     def prepare_input(self, batch_data, evaluation=False):
         """Converts token ids to glove, bert, pos, ner embeddings and concatenates all features.
@@ -326,7 +321,7 @@ class BertyNet(nn.Module):
             tokens_tensor = torch.tensor([cat_tokens])
             segments_tensor = segment_mask.unsqueeze(0)
 
-            if True:
+            if self.use_cuda:
                 tokens_tensor = tokens_tensor.cuda()
                 segments_tensor = segments_tensor.cuda()
 
