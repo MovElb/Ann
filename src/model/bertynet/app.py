@@ -31,7 +31,7 @@ def main():
 
     args = parser.parse_args()
 
-    print('Cuda is available:' + torch.cuda.is_available(), file=sys.stderr, flush=True)
+    print('Cuda is available:', torch.cuda.is_available(), file=sys.stderr, flush=True)
 
     global cmw
     cmw = CloudModelWrapper(args)

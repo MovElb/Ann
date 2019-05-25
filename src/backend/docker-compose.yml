@@ -10,8 +10,8 @@ services:
       - backend
     environment:
       - PYTHONASYNCIODEBUG=0
-      - GAPI_KEY=0
-      - GAPI_CX=0
+      - GAPI_KEY=${GAPI_KEY}
+      - GAPI_CX=${GAPI_CX}
     volumes:
       - ./qaweb:/qaweb/qaweb
       - ./configs:/qaweb/configs

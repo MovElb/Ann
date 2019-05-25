@@ -1,5 +1,7 @@
 import logging
 import sys
+import time
+from typing import Dict
 
 import ujson
 from aiohttp import web
@@ -17,19 +19,42 @@ async def search_handler(request: web.Request) -> web.Response:
     except ValueError:
         raise web.HTTPBadRequest(text="JSON is malformed")
 
-    # saas: SaaSConnector = request.app['saas']
-    # if request_body.get('text'):
-    #     texts = [request_body['text']]
-    # else:
-    #     texts = saas.get_documents(query)
-    #
-    # prepro: CustomPrepro = request.app['prepro']
-    # preprocessed_data = []
-    # for text in texts:
-    #     preprocessed_data.append(prepro.prepro(text, query))
-    #
-    # net: NetConnector = request.app['net']
-    # answers = await net.get_answer(preprocessed_data)
+    saas: SaaSConnector = request.app['saas']
+    if request_body.get('text'):
+        documents = [request_body['text']]
+    else:
+        st = time.time()
+        documents = await saas.get_documents(query)
+        print('Time in Google', time.time() - st, flush=True, file=sys.stdout)
 
-    return web.json_response(request_body)
+    texts = []
+    for doc in documents:
+        try:
+            text = doc.summary
+            if len(text) > 1:
+                texts.append(text)
+        except Exception:
+            pass
 
+    st = time.time()
+    prepro: CustomPrepro = request.app['prepro']
+    preprocessed_data = []
+    for text in texts:
+        preprocessed_data.append(prepro.prepro(text, query))
+    print('Time in CustomPrepro', time.time() - st, flush=True, file=sys.stdout)
+
+    st = time.time()
+    net: NetConnector = request.app['net']
+    answers: Dict = await net.get_answer(preprocessed_data)
+    print('Time in Net', time.time() - st, flush=True, file=sys.stdout)
+
+    answers_packed = []
+    for i in range(len(texts)):
+        answ = {}
+        for key in answers.keys():
+            answ[key] = answers[key][i]
+        answers_packed.append(answ)
+
+    # answers_packed.sort(key=lambda a: a['score'], reverse=True)
+
+    return web.json_response({'answers': answers_packed})

@@ -3,7 +3,7 @@ import urllib.parse
 
 import aiohttp
 import ujson
-from typing import Any, List
+from typing import Any, List, Dict
 
 import wikipediaapi
 from aiohttp import web
@@ -37,7 +37,9 @@ class SaaSConnector(BaseConnector):
 
         async with self._sess.get(self._url + quote_encoded) as resp:
             resp.raise_for_status()
-            urls = [item['link'] for item in await resp.json(loads=ujson.loads)][:limit]
+
+            google_serp: Dict = await resp.json(loads=ujson.loads)
+            urls = [item['link'] for item in google_serp['items']][:limit]
 
             texts = []
             for url in urls:
@@ -52,8 +54,8 @@ class NetConnector(BaseConnector):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
-    async def get_answer(self, preprocessed) -> str:
-        async with self._sess.get(self._url, data={'data': preprocessed}) as resp:
+    async def get_answer(self, preprocessed) -> Dict:
+        async with self._sess.post(self._url, json={'data': preprocessed}) as resp:
             resp.raise_for_status()
             return await resp.json()
 

@@ -30,7 +30,7 @@ class CloudModelWrapper:
         if args.use_cuda:
             torch.cuda.set_rng_state(checkpoint['torch_cuda_state'].cpu())
 
-        self.bg_wrap = partial(BatchGen, batch_size=1, evaluation=True)
+        self.bg_wrap = partial(BatchGen, batch_size=100, evaluation=True)
 
     def load_embeddings_and_update_opt_(self):
         meta_filename = os.path.join(self.opt['data_dir'], self.opt['meta_file'])
