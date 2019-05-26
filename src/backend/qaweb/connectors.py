@@ -2,6 +2,7 @@ import os
 import urllib.parse
 
 import aiohttp
+import aiowiki
 import ujson
 from typing import Any, List, Dict
 
@@ -30,9 +31,9 @@ class SaaSConnector(BaseConnector):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self._url = self._url.format(os.environ['GAPI_KEY'], os.environ['GAPI_CX'])
-        self._wiki = wikipediaapi.Wikipedia('en')
+        self._wiki = aiowiki.Wiki.wikipedia("en")
 
-    async def get_documents(self, query, limit: int = 10) -> List[wikipediaapi.WikipediaPage]:
+    async def get_documents(self, query, limit: int = 10) -> List[aiowiki.Page]:
         quote_encoded = urllib.parse.quote(query)
 
         async with self._sess.get(self._url + quote_encoded) as resp:
@@ -43,7 +44,7 @@ class SaaSConnector(BaseConnector):
 
             texts = []
             for url in urls:
-                texts.append(self._wiki.page(url.split('/')[-1]))
+                texts.append(self._wiki.get_page(url.split('/')[-1]))
             return texts
 
     async def process_query(self, query) -> str:
