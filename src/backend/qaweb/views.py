@@ -53,7 +53,7 @@ async def search_handler(request: web.Request) -> web.Response:
     st = time.time()
     answers_packed = []
     for i in range(len(texts)):
-        answ = {}
+        answ = {'text': texts[i]}
         for key in answers.keys():
             answ[key] = answers[key][i]
         answers_packed.append(answ)
