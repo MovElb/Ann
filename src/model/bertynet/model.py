@@ -106,10 +106,6 @@ class BertyModel:
         with torch.no_grad():
             logits_s, logits_e, logits_ps, logits_pe, logits_answerable = self.network(prepared_input)
         scores_answerable = F.softmax(logits_answerable, dim=1)
-        thresh_fix = self.opt['threshold_ans'] - 0.5
-        scores_answerable[:, 0] += thresh_fix
-        scores_answerable[:, 1] -= thresh_fix
-        is_answerable = torch.argmax(scores_answerable, dim=1)
         has_answer_score = scores_answerable[:, 1].tolist()
 
         scores_s = F.softmax(logits_s, dim=1)[:, 1:]
@@ -159,7 +155,6 @@ class BertyModel:
             'plausible_predictions': plausible_predictions,
             'score': score.tolist(),
             'plausible_score': plausible_score.tolist(),
-            'is_answerable': is_answerable.tolist(),
             'has_ans_score': has_answer_score,
             'start_offset': all_start_offset,
             'end_offset': all_end_offset,
