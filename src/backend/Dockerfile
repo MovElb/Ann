@@ -4,13 +4,15 @@ ENV TZ Europe/Moscow
 
 ADD requirements.txt /qaweb/
 RUN pip install -U pip -r /qaweb/requirements.txt
+RUN python -m spacy download en
 
 ADD setup.py /qaweb
 ADD ./qaweb /qaweb/qaweb/
 ADD ./configs /qaweb/configs/
 
-RUN pip install -e /qaweb
+RUN mkdir -p /qaweb/squad2_preprocessed \
+    && curl -SL https://storage.googleapis.com/seann/meta.msgpack -o /qaweb/squad2_preprocessed/meta.msgpack
 
-EXPOSE 8080
+RUN pip install -e /qaweb
 
 WORKDIR /qaweb
