@@ -28,7 +28,7 @@ function replaceValidationUI( form ) {
         }
         for ( var i = 0; i < invalidFields.length; i++ ) {
             parent = invalidFields[ i ].parentNode;
-            parent.insertAdjacentHTML( "beforeend", "<div class='error-message'>" +
+            parent.insertAdjacentHTML( "beforeend", "<div class=\"error-message\">" +
                 invalidFields[ i ].validationMessage +
                 "</div>" );
         }
@@ -47,7 +47,7 @@ const isValidElement = element => {
   return element.name && element.value && !element.disabled;
 };
 const isValidValue = element => {
-  return (!['checkbox', 'radio'].includes(element.type) || element.checked);
+  return (!["checkbox", "radio"].includes(element.type) || element.checked);
 };
 const formToJSON = elements => [].reduce.call(elements, (data, element) => {
   if (isValidElement(element) && isValidValue(element)) {
@@ -60,50 +60,119 @@ const handleFormSubmit = event => {
   event.preventDefault();
   const data = formToJSON(form.elements);
 
-  // Demo only: print the form data onscreen as a formatted JSON object.
-  const dataContainer = document.getElementsByClassName('results__display')[0];
-  dataContainer.textContent = JSON.stringify(data, null, "  ");
-
-  // var xhr = new XMLHttpRequest()
-  // if(xhr)
-  //   {
-  //     xhr.open('POST', https://seann.ru/api/search, true);
-  //     // xhr.setRequestHeader('X-PINGOTHER', 'pingpong');
-  //     xhr.setRequestHeader('Content-Type', 'application/json');
-  //     // xhr.onreadystatechange = handler;
-  //     xhr.send(JSON.stringify(data));
-  //   }
-  fetch('https://seann.ru/api/search', {
-    method: 'post',
-    mode: 'cors',
-    withCredentials: false,
-    headers: {
-      "Content-type": "application/json"
-    },
-    body: JSON.stringify(data)
-  })
-  .then(function (json) {
-    console.log('Request succeeded with JSON response', json);
-    // const dataContainer = document.getElementsByClassName('results__display')[0];
-    dataContainer.textContent = JSON.stringify(json, null, "  ");
-  })
-  .catch(function (error) {
-    console.log('Request failed', error);
-  });
+  document.getElementById("load").style.visibility="visible";
+  var xhr = new XMLHttpRequest();
+  if (xhr) {
+      xhr.open("POST", "https://seann.ru/api/search", true);
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.onreadystatechange = function (e) {
+        if (xhr.readyState === 4) {
+          document.getElementById("load").style.visibility="hidden";
+          document.getElementById("question_page_id").style.display="none";
+          document.getElementById("answer_page_id").style.display="inline";
+          if (xhr.status === 200) {
+            console.log(xhr.responseText);
+            show_answers(JSON.parse(xhr.responseText));
+          } else {
+            console.error(xhr.statusText);
+          }
+        }
+      };
+      xhr.onerror = function (e) {
+        console.error(xhr.statusText);
+      };
+      xhr.send(JSON.stringify(data));
+  };
 };
 
+function show_answers(response) {
+  var paragraph = document.getElementById("question_div");
+  paragraph.style.display = "block";
+  var paragraph = document.getElementById("question");
+  paragraph.textContent = response["query"];
+
+  for (var i = 0; i < response["answers"].length; i++) {
+    var page = document.getElementById("answer_page_id");
+    page.innerHTML += "<div class=\"answer_block\"><div class=\"answer_score\"><p>" +
+      (100 * response["answers"][i]["has_ans_score"]).toString().slice(0, 4) +
+      "</p></div><div class=\"context_answer_page\" id=\"context" + (i).toString() + "\"></div></div>";
+
+    var paragraph = document.getElementById("context" + (i).toString());
+    paragraph.style.display = "block";
+    paragraph.innerHTML = "<p id=\"answer" + (i).toString() + "\"></p>";
+
+    var paragraph = document.getElementById("answer" + (i).toString());
+    paragraph.innerHTML = tag_answers(response[i]["text"],
+     response["answers"][i]["start_offset"],
+     response["answers"][i]["end_offset"],
+     response["answers"][i]["start_poffset"],
+     response["answers"][i]["end_poffset"]);
+  }
+}
+
+function tag_answers(context, ans_begin, ans_end, pans_begin, pans_end) {
+  if ((ans_begin < pans_end) && (pans_begin >= ans_end)) {
+    return context.slice(0, ans_begin) + "<mark class=\"mark_answer\">" +
+      context.slice(ans_begin, ans_end) + "</mark>" +
+      context.slice(ans_end, pans_begin) + "<mark class=\"mark_panswer\">" +
+      context.slice(pans_begin, pans_end) + "</mark>" +
+      context.slice(pans_end);
+  } else if ((ans_begin >= pans_end) && (pans_begin < ans_end)) {
+    return context.slice(0, pans_begin) + "<mark class=\"mark_panswer\">" +
+       context.slice(pans_begin, pans_end) + "</mark>" +
+       context.slice(pans_end, ans_begin) + "<mark class=\"mark_answer\">" +
+       context.slice(ans_begin, ans_end) + "</mark>" +
+       context.slice(ans_end);
+  } else if ((ans_begin === pans_begin) && (ans_end < pans_end)) {
+    return context.slice(0, pans_begin) + "<mark class=\"mark_cross\">" +
+       context.slice(pans_begin, ans_end) + "</mark><mark class=\"mark_panswer\">" +
+       context.slice(ans_end, pans_end) + "</mark>" +
+       context.slice(pans_end);
+  } else if ((ans_begin === pans_begin) && (pans_end < ans_end)) {
+    return context.slice(0, pans_begin) + "<mark class=\"mark_cross\">" +
+       context.slice(pans_begin, ans_end) + "</mark><mark class=\"mark_answer\">" +
+       context.slice(ans_end, pans_end) + "</mark>" +
+       context.slice(pans_end);
+  } else if ((ans_begin === pans_begin) && (ans_end === pans_end)) {
+    return context.slice(0, pans_begin) + "<mark class=\"mark_cross\">" +
+       context.slice(pans_begin, ans_end) + "</mark>" +
+       context.slice(ans_end);
+  } else if ((ans_end === pans_end) && (ans_begin < pans_begin)) {
+    return context.slice(0, ans_begin) + "<mark class=\"mark_answer\">" +
+       context.slice(ans_begin, pans_begin) + "</mark><mark class=\"mark_cross\">" +
+       context.slice(pans_begin, pans_end) + "</mark>" +
+       context.slice(pans_end);
+  } else if ((ans_end === pans_end) && (ans_begin > pans_begin)) {
+    return context.slice(0, pans_begin) + "<mark class=\"mark_panswer\">" +
+       context.slice(pans_begin, ans_begin) + "</mark><mark class=\"mark_cross\">" +
+       context.slice(ans_begin, pans_end) + "</mark>" +
+       context.slice(pans_end);
+  } else if ((ans_begin < pans_end) && (pans_begin < ans_end) && (ans_begin < pans_begin)) {
+    return context.slice(0, ans_begin) + "<mark class=\"mark_answer\">" +
+       context.slice(ans_begin, pans_begin) + "</mark><mark class=\"mark_cross\">" +
+       context.slice(pans_begin, ans_end) + "</mark><mark class=\"mark_panswer\">" +
+       context.slice(ans_end, pans_end) + "</mark>" +
+       context.slice(pans_end);
+  } else if ((ans_begin < pans_end) && (pans_begin < ans_end) && (ans_begin > pans_begin)) {
+    return context.slice(0, pans_begin) + "<mark class=\"mark_panswer\">" +
+       context.slice(pans_begin, ans_begin) + "</mark><mark class=\"mark_cross\">" +
+       context.slice(ans_begin, pans_end) + "</mark><mark class=\"mark_answer\">" +
+       context.slice(pans_end, ans_end) + "</mark>" +
+       context.slice(ans_end);
+  } else if ((ans_begin < pans_begin) && (pans_end < ans_end)) {
+    return context.slice(0, ans_begin) + "<mark class=\"mark_answer\">" +
+       context.slice(ans_begin, pans_begin) + "</mark><mark class=\"mark_cross\">" +
+       context.slice(pans_begin, pans_end) + "</mark><mark class=\"mark_answer\">" +
+       context.slice(pans_end, ans_end) + "</mark>" +
+       context.slice(ans_end);
+  } else if ((pans_begin < ans_begin) && (ans_end < pans_end)) {
+    return context.slice(0, pans_begin) + "<mark class=\"mark_panswer\">" +
+       context.slice(pans_begin, ans_begin) + "</mark><mark class=\"mark_cross\">" +
+       context.slice(ans_begin, ans_end) + "</mark><mark class=\"mark_panswer\">" +
+       context.slice(ans_end, pans_end) + "</mark>" +
+       context.slice(pans_end);
+  }
+}
+
 const form = document.getElementById( "custom_request_id" );
-form.addEventListener('submit', handleFormSubmit);
-// dlers.
-//   xhr.onload = function() {
-//     var text = xhr.responseText;
-//     var title = getTitle(text);
-//     alert('Response from CORS request to ' + url + ': ' + title);
-//   };
-//
-//   xhr.onerror = function() {
-//     alert('Woops, there was an error making the request.');
-//   };
-//
-//   xhr.send(data);
-// }
+form.addEventListener("submit", handleFormSubmit);
