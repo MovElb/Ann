@@ -6,7 +6,6 @@ import aiowiki
 import ujson
 from typing import Any, List, Dict
 
-import wikipediaapi
 from aiohttp import web
 
 
@@ -40,7 +39,7 @@ class SaaSConnector(BaseConnector):
             resp.raise_for_status()
 
             google_serp: Dict = await resp.json(loads=ujson.loads)
-            urls = [item['link'] for item in google_serp['items']][:limit]
+            urls = [item['link'] for item in google_serp.get('items', list())][:limit]
 
             texts = []
             for url in urls:
@@ -56,6 +55,9 @@ class NetConnector(BaseConnector):
         super().__init__(*args, **kwargs)
 
     async def get_answer(self, preprocessed) -> Dict:
+        if len(preprocessed) == 0:
+            return {}
+
         async with self._sess.post(self._url, json={'data': preprocessed}) as resp:
             resp.raise_for_status()
             return await resp.json()
