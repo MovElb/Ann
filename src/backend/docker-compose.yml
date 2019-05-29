@@ -32,6 +32,26 @@ services:
     depends_on:
       - qaweb
 
+#  master:
+#    image: redis:4.0-alpine
+#  slave:
+#    image: redis:4.0-alpine
+#    command: redis-server --slaveof redis-master 6379
+#    links:
+#      - master:redis-master
+#    volumes:
+#      - redis/.data:/data
+#  sentinel:
+#    build: redis/sentinel
+#    environment:
+#      - SENTINEL_DOWN_AFTER=5000
+#      - SENTINEL_FAILOVER=5000
+#    links:
+#      - master:redis-master
+#      - slave
+#    ports:
+#      - 26379:26379
+
 networks:
   backend:
 

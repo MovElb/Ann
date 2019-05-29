@@ -20,7 +20,14 @@ class NetSchemaSection(Schema):
     read_timeout = fields.Integer(required=True)
 
 
+class RedisSchemaSection(Schema):
+    host = fields.String(required=True)
+    port = fields.Integer(required=True)
+    master_name = fields.String(required=True)
+
+
 class ConfigSchema(Schema):
     app = fields.Nested(AppSchemaSection(), required=True)
     saas = fields.Nested(SaaSSchemaSection(), required=True)
     net = fields.Nested(NetSchemaSection(), required=True)
+    redis = fields.Nested(RedisSchemaSection(), required=True)

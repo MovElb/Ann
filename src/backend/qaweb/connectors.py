@@ -2,6 +2,7 @@ import os
 import urllib.parse
 
 import aiohttp
+import aioredis
 import aiowiki
 import ujson
 from typing import Any, List, Dict
@@ -47,6 +48,23 @@ class SaaSConnector(BaseConnector):
             return texts
 
     async def process_query(self, query) -> str:
+        pass
+
+
+class RedisConnector:
+    def __init__(self, host: str, port: int, master_name: str):
+        self._host = host
+        self._port = port
+        self._master_name = master_name
+
+    async def connect(self):
+        sentinel = await aioredis.create_sentinel([(self._host, self._port)])
+        self._master = sentinel.master_for(self._master_name)
+
+    async def get_text(selfs, title) -> str:
+        pass
+
+    async def get_preprocessed(self, title):
         pass
 
 

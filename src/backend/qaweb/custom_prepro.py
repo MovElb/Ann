@@ -1,6 +1,6 @@
 import spacy
 import msgpack
-from .prepro import annotate, annotate_single, annotate_crossed, to_id
+from qaweb.prepro import annotate, annotate_single, annotate_crossed, to_id
 from functools import partial
 
 
