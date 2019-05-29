@@ -91,11 +91,23 @@ function show_answers(response) {
   var paragraph = document.getElementById("question");
   paragraph.textContent = response["query"];
 
+  if (response["answers"].length === 0) {
+    var page = document.getElementById("answer_page_id");
+    page.innerHTML += "<div class=\"answer_block\"><div class=\"answer_score\">"+
+      "<p>Oops..</p></div>"+
+      "<div class=\"context_answer_page\" id=\"context0\"></div></div>";
+    var paragraph = document.getElementById("context0");
+    paragraph.style.display = "block";
+    paragraph.innerHTML = "<p id=\"answer0\"></p>";
+    var paragraph = document.getElementById("answer" + (i).toString());
+    paragraph.innerHTML = "Nothing is found on your request.";
+  }
+
   for (var i = 0; i < response["answers"].length; i++) {
     var page = document.getElementById("answer_page_id");
-    page.innerHTML += "<div class=\"answer_block\"><div class=\"answer_score\"><p>" +
+    page.innerHTML += "<div class=\"answer_block\"><div class=\"answer_score\"><p>Confidence score: " +
       (100 * response["answers"][i]["has_ans_score"]).toString().slice(0, 4) +
-      "</p></div><div class=\"context_answer_page\" id=\"context" + (i).toString() + "\"></div></div>";
+      "%</p></div><div class=\"context_answer_page\" id=\"context" + (i).toString() + "\"></div></div>";
 
     var paragraph = document.getElementById("context" + (i).toString());
     paragraph.style.display = "block";

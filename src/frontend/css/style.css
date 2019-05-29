@@ -4,8 +4,8 @@
 { box-sizing: border-box; }
 
 body {
-	font-family: 'Open Sans', sans-serif;
-	/* font-family: "Lato", "FontAwesome", sans-serif; */
+	/* font-family: 'Open Sans', sans-serif; */
+	font-family: "Lato", "FontAwesome", sans-serif;
 	background-color: #fefefe;
 	margin: 0;
 }
