@@ -1,25 +1,14 @@
-import re
-import json
 import spacy
 import msgpack
-import unicodedata
-import numpy as np
-import argparse
-import collections
-import multiprocessing
-from prepro import annotate, annotate_single, annotate_crossed, to_id
-from multiprocessing import Pool
-from utils import str2bool
-from tqdm import tqdm
+from .prepro import annotate, annotate_single, annotate_crossed, to_id
 from functools import partial
-import logging
+
 
 class CustomPrepro():
-    def __init__(self
-                , meta_file='./squad2_preprocessed/meta.msgpack'
-                , wv_dim=300):
+    def __init__(self, meta_file='./squad2_preprocessed/meta.msgpack'):
         with open(meta_file, 'rb') as f:
             meta = msgpack.unpack(f, encoding='utf8')
+
         self.vocab = meta['vocab']
         self.vocab_tag = meta['vocab_tag']
         self.vocab_ent = meta['vocab_ent']

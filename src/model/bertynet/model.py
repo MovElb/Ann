@@ -6,8 +6,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.nn.utils import clip_grad_norm_
 
-from BertyNet import BertyNet
-from utils import AverageMeter
+from bertynet.BertyNet import BertyNet
+from bertynet.utils import AverageMeter
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +99,68 @@ class BertyModel:
             predictions.append(contexts[i][start_offset:end_offset])
 
         return predictions, is_answerable
+
+    def infer(self, batch):
+        self.network.eval()
+        prepared_input = self.network.prepare_input(batch, evaluation=True)
+        with torch.no_grad():
+            logits_s, logits_e, logits_ps, logits_pe, logits_answerable = self.network(prepared_input)
+        scores_answerable = F.softmax(logits_answerable, dim=1)
+        has_answer_score = scores_answerable[:, 1].tolist()
+
+        scores_s = F.softmax(logits_s, dim=1)[:, 1:]
+        scores_e = F.softmax(logits_e, dim=1)[:, 1:]
+
+        scores_ps = F.softmax(logits_ps, dim=1)[:, 1:]
+        scores_pe = F.softmax(logits_pe, dim=1)[:, 1:]
+
+        max_pred_len = self.opt['max_pred_len'] or scores_s.size(1)
+
+        scores_mat = torch.bmm(scores_s.unsqueeze(2), scores_e.unsqueeze(1))
+        scores_mat.triu_().tril_(max_pred_len - 1)
+        start_scores, start_idxs = torch.max(torch.max(scores_mat, 2)[0], 1)
+        end_scores, end_idxs = torch.max(torch.max(scores_mat, 1)[0], 1)
+
+        scores_pmat = torch.bmm(scores_ps.unsqueeze(2), scores_pe.unsqueeze(1))
+        scores_pmat.triu_().tril_(max_pred_len - 1)
+        start_pscores, start_pidxs = torch.max(torch.max(scores_pmat, 2)[0], 1)
+        end_pscores, end_pidxs = torch.max(torch.max(scores_pmat, 1)[0], 1)
+
+        contexts = batch[11]
+        spans = batch[10]
+        predictions = []
+        plausible_predictions = []
+        all_start_offset, all_end_offset = [], []
+        all_start_poffset, all_end_poffset = [], []
+        for i in range(start_idxs.size(0)):
+            start_idx, end_idx = start_idxs[i].item(), end_idxs[i].item()
+            start_offset, end_offset = spans[i][start_idx][0], spans[i][end_idx][1]
+
+            start_pidx, end_pidx = start_pidxs[i].item(), end_pidxs[i].item()
+            start_poffset, end_poffset = spans[i][start_pidx][0], spans[i][end_pidx][1]
+
+            all_start_offset.append(start_offset)
+            all_end_offset.append(end_offset)
+            all_start_poffset.append(start_poffset)
+            all_end_poffset.append(end_poffset)
+
+            predictions.append(contexts[i][start_offset:end_offset])
+            plausible_predictions.append(contexts[i][start_poffset:end_poffset])
+
+        score = start_scores * end_scores
+        plausible_score = start_pscores * end_pscores
+
+        return {
+            'predictions': predictions,
+            'plausible_predictions': plausible_predictions,
+            'score': score.tolist(),
+            'plausible_score': plausible_score.tolist(),
+            'has_ans_score': has_answer_score,
+            'start_offset': all_start_offset,
+            'end_offset': all_end_offset,
+            'start_poffset': all_start_poffset,
+            'end_poffset': all_end_poffset
+        }
 
     def save(self, filename, epoch):
         state_dict = self.network.state_dict()
