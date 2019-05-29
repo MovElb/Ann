@@ -99,26 +99,26 @@ function show_answers(response) {
     var paragraph = document.getElementById("context0");
     paragraph.style.display = "block";
     paragraph.innerHTML = "<p id=\"answer0\"></p>";
-    var paragraph = document.getElementById("answer" + (i).toString());
+    var paragraph = document.getElementById("answer0");
     paragraph.innerHTML = "Nothing is found on your request.";
-  }
+  } else {
+    for (var i = 0; i < response["answers"].length; i++) {
+      var page = document.getElementById("answer_page_id");
+      page.innerHTML += "<div class=\"answer_block\"><div class=\"answer_score\"><p>Confidence score: " +
+        (100 * response["answers"][i]["has_ans_score"]).toString().slice(0, 4) +
+        "%</p></div><div class=\"context_answer_page\" id=\"context" + (i).toString() + "\"></div></div>";
 
-  for (var i = 0; i < response["answers"].length; i++) {
-    var page = document.getElementById("answer_page_id");
-    page.innerHTML += "<div class=\"answer_block\"><div class=\"answer_score\"><p>Confidence score: " +
-      (100 * response["answers"][i]["has_ans_score"]).toString().slice(0, 4) +
-      "%</p></div><div class=\"context_answer_page\" id=\"context" + (i).toString() + "\"></div></div>";
+      var paragraph = document.getElementById("context" + (i).toString());
+      paragraph.style.display = "block";
+      paragraph.innerHTML = "<p id=\"answer" + (i).toString() + "\"></p>";
 
-    var paragraph = document.getElementById("context" + (i).toString());
-    paragraph.style.display = "block";
-    paragraph.innerHTML = "<p id=\"answer" + (i).toString() + "\"></p>";
-
-    var paragraph = document.getElementById("answer" + (i).toString());
-    paragraph.innerHTML = tag_answers(response["answers"][i]["text"],
-     response["answers"][i]["start_offset"],
-     response["answers"][i]["end_offset"],
-     response["answers"][i]["start_poffset"],
-     response["answers"][i]["end_poffset"]);
+      var paragraph = document.getElementById("answer" + (i).toString());
+      paragraph.innerHTML = tag_answers(response["answers"][i]["text"],
+       response["answers"][i]["start_offset"],
+       response["answers"][i]["end_offset"],
+       response["answers"][i]["start_poffset"],
+       response["answers"][i]["end_poffset"]);
+    }
   }
 }
 
