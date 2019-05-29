@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <!-- <div id="load"></div> -->
+  <head>
+    <meta charset="UTF-8">
+    <title>SeAnn</title>
+    <link rel="stylesheet" href="css/style.css">
+  </head>
+  <div class="loader" id="load">
+      <span class="ball"></span>
+      <span class="ball2"></span>
+      <ul><li></li><li></li><li></li><li></li><li></li></ul>
+  </div>
+  <body>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <title>SeAnn - найдётся хоть что-то!</title>
+      </head>
+      <body>
+        </br>
+        <h1>SeAnn - найдётся хоть что-то!</h1>
+        </br>
+        <div class="question_page" id="question_page_id">
+          <div class="form">
+            <form id="custom_request_id" method="post">
+              <div>
+                <label for="question_id">Введите ваш вопрос:</label>
+                <input type="text" id="question_id" name="query" placeholder="Ваш вопрос" required>
+              </div>
+              </br>
+              <div>
+                <input type="checkbox" id="custom_context_id" name="custom_context" value="on">
+                <label for="custom_context_id">Использовать предоставленный контекст</label>
+              </div>
+              </br>
+              <div>
+                <label for="context_id">Введите ваш контекст:</label>
+                </br>
+                <textarea id="context_id" name="text" placeholder="Ваш контекст" rows="8" disabled></textarea>
+              </div>
+              <input type="submit" id="submit_id" value="Найти ответ">
+            </form>
+          </div>
+        </div>
+        <div class="answer_page" id="answer_page_id">
+          <div class="question_answer_page" id="question_div">
+            <p id="question"></p>
+          </div>
+        </div>
+       </body>
+    </html>
+    <script language="JavaScript" type="text/javascript" src="js/index.js"></script>
+  </body>
+</html>
