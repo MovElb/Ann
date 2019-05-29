@@ -102,7 +102,7 @@ function show_answers(response) {
     paragraph.innerHTML = "<p id=\"answer" + (i).toString() + "\"></p>";
 
     var paragraph = document.getElementById("answer" + (i).toString());
-    paragraph.innerHTML = tag_answers(response[i]["text"],
+    paragraph.innerHTML = tag_answers(response["answers"][i]["text"],
      response["answers"][i]["start_offset"],
      response["answers"][i]["end_offset"],
      response["answers"][i]["start_poffset"],
