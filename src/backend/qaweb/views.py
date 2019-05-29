@@ -21,22 +21,22 @@ async def search_handler(request: web.Request) -> web.Response:
 
     saas: SaaSConnector = request.app['saas']
     if request_body.get('text'):
-        documents = [request_body['text']]
+        texts = [request_body['text']]
     else:
         st = time.time()
         documents = await saas.get_documents(query)
         print('Time in Google', time.time() - st, flush=True, file=sys.stdout)
 
-    st = time.time()
-    texts = []
-    for doc in documents:
-        try:
-            text = await doc.summary()
-            if len(text) > 1:
-                texts.append(text)
-        except Exception:
-            pass
-    print('Time in wikipedia', time.time() - st, flush=True, file=sys.stdout)
+        st = time.time()
+        texts = []
+        for doc in documents:
+            try:
+                text = await doc.summary()
+                if len(text) > 1:
+                    texts.append(text)
+            except Exception:
+                pass
+        print('Time in wikipedia', time.time() - st, flush=True, file=sys.stdout)
 
     st = time.time()
     prepro: CustomPrepro = request.app['prepro']
@@ -49,6 +49,8 @@ async def search_handler(request: web.Request) -> web.Response:
     net: NetConnector = request.app['net']
     answers: Dict = await net.get_answer(preprocessed_data)
     print('Time in Net', time.time() - st, flush=True, file=sys.stdout)
+
+    print(answers, flush=True, file=sys.stdout)
 
     st = time.time()
     answers_packed = []
