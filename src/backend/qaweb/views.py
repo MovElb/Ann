@@ -61,4 +61,4 @@ async def search_handler(request: web.Request) -> web.Response:
 
     # answers_packed.sort(key=lambda a: a['score'], reverse=True)
 
-    return web.json_response({'answers': answers_packed}, dumps=ujson.dumps)
+    return web.json_response({'query': query, 'answers': answers_packed}, dumps=ujson.dumps)
