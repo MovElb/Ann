@@ -28,8 +28,10 @@ function replaceValidationUI( form ) {
         }
         for ( var i = 0; i < invalidFields.length; i++ ) {
             parent = invalidFields[ i ].parentNode;
+            var message = invalidFields[ i ].validationMessage;
+            message = (message === 'Заполните это поле.' ? "Please, fill this field." : "Something went wrong. Please, retype your text.");
             parent.insertAdjacentHTML( "beforeend", "<div class=\"error-message\">" +
-                invalidFields[ i ].validationMessage +
+                message +
                 "</div>" );
         }
         if ( invalidFields.length > 0 ) {
