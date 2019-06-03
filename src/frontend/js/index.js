@@ -115,13 +115,13 @@ function show_answers(response) {
       page.innerHTML += "<div class=\"answer_block\">"+
         "<div class=\"answer_score\">"+
           "<p>"+
-            "<a href=\"http://wikipedia.org/"+
+            "<a href=\"http://wikipedia.org/wiki/"+
               response["answers"][i]["title"] + "\">" +
             response["answers"][i]["title"]+
             "</a></br>"+
-            "Confidence score: " +
+            "Confidence score: <b>" +
         (100 * response["answers"][i]["has_ans_score"]).toString().slice(0, 4) +
-        "%</p></div><div class=\"context_answer_page\" id=\"context" + (i).toString() + "\"></div></div>";
+        "%</b></p></div><div class=\"context_answer_page\" id=\"context" + (i).toString() + "\"></div></div>";
 
       var paragraph = document.getElementById("context" + (i).toString());
       paragraph.style.display = "block";
