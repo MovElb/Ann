@@ -350,3 +350,12 @@ h1 {
 .mark_cross {
 	background-color: #3FB856;
 }
+
+footer {
+	position: fixed;
+	left: 0;
+	bottom: 0;
+	width: 100%;
+	text-align: center;
+	font-size: 0.6em;
+}
