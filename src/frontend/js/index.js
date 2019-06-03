@@ -95,12 +95,7 @@ function show_answers(response) {
 
   if (response["answers"].length === 0) {
     var page = document.getElementById("answer_page_id");
-    page.innerHTML += "<div class=\"legend\">\n" +
-      "<div class=\"legend_answer\"></div> Answer</br>\n" +
-      "<div class=\"legend_panswer\"></div> Plausible Answer</br>\n" +
-      "<div class=\"legend_cross\"></div> Intersection of Answer and Plausible Answer</br>\n" +
-      "</div>\n" +
-      "<div class=\"answer_block\"><div class=\"answer_score\">" +
+    page.innerHTML += "<div class=\"answer_block\"><div class=\"answer_score\">" +
       "<p>Oops..</p></div>" +
       "<div class=\"context_answer_page\" id=\"context0\"></div></div>";
     var paragraph = document.getElementById("context0");
@@ -111,7 +106,12 @@ function show_answers(response) {
   } else {
     for (var i = 0; i < response["answers"].length; i++) {
       var page = document.getElementById("answer_page_id");
-      page.innerHTML += "<div class=\"answer_block\"><div class=\"answer_score\"><p>Confidence score: " +
+      page.innerHTML += "<div class=\"legend\">\n" +
+        "<div class=\"legend_answer\"></div> Answer</br>\n" +
+        "<div class=\"legend_panswer\"></div> Plausible Answer</br>\n" +
+        "<div class=\"legend_cross\"></div> Intersection of Answer and Plausible Answer</br>\n" +
+        "</div>\n" +
+        "<div class=\"answer_block\"><div class=\"answer_score\"><p>Confidence score: " +
         (100 * response["answers"][i]["has_ans_score"]).toString().slice(0, 4) +
         "%</p></div><div class=\"context_answer_page\" id=\"context" + (i).toString() + "\"></div></div>";
 
