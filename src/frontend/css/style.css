@@ -263,7 +263,7 @@ h1 {
 }
 .question_answer_page p{
 	font-size: 1.1em;
-	/* padding: 5px; */
+	padding-left: 8px;
   width: 100%;
   /* display: inline-block; */
 	margin: 3px 3px;
