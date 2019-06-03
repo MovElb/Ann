@@ -109,7 +109,7 @@ function show_answers(response) {
       "<div class=\"legend_answer\"></div> Answer</br>\n" +
       "<div class=\"legend_panswer\"></div> Plausible Answer</br>\n" +
       "<div class=\"legend_cross\"></div> Intersection of Answer and Plausible Answer</br>\n" +
-      "</div>\n";
+      "</div></br>\n";
     for (var i = 0; i < response["answers"].length; i++) {
       var page = document.getElementById("answer_page_id");
       page.innerHTML += "<div class=\"answer_block\"><div class=\"answer_score\"><p>Confidence score: " +
