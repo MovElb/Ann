@@ -104,14 +104,15 @@ function show_answers(response) {
     var paragraph = document.getElementById("answer0");
     paragraph.innerHTML = "Nothing is found on your request.";
   } else {
+    var page = document.getElementById("answer_page_id");
+    page.innerHTML += "<div class=\"legend\">\n" +
+      "<div class=\"legend_answer\"></div> Answer</br>\n" +
+      "<div class=\"legend_panswer\"></div> Plausible Answer</br>\n" +
+      "<div class=\"legend_cross\"></div> Intersection of Answer and Plausible Answer</br>\n" +
+      "</div>\n";
     for (var i = 0; i < response["answers"].length; i++) {
       var page = document.getElementById("answer_page_id");
-      page.innerHTML += "<div class=\"legend\">\n" +
-        "<div class=\"legend_answer\"></div> Answer</br>\n" +
-        "<div class=\"legend_panswer\"></div> Plausible Answer</br>\n" +
-        "<div class=\"legend_cross\"></div> Intersection of Answer and Plausible Answer</br>\n" +
-        "</div>\n" +
-        "<div class=\"answer_block\"><div class=\"answer_score\"><p>Confidence score: " +
+      page.innerHTML += "<div class=\"answer_block\"><div class=\"answer_score\"><p>Confidence score: " +
         (100 * response["answers"][i]["has_ans_score"]).toString().slice(0, 4) +
         "%</p></div><div class=\"context_answer_page\" id=\"context" + (i).toString() + "\"></div></div>";
 

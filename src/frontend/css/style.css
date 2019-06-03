@@ -243,18 +243,18 @@ h1 {
 }
 
 .question_page {
-	/* display: none; */
+	display: none;
 }
 
 .answer_page {
-	display: none	;
+	/* display: none	; */
 }
 
 .question_answer_page {
   margin: auto 15%;
 	max-width: 70%;
 	padding: 5px;
-	display: none;
+	/* display: none; */
 }
 .question_answer_page p{
 	font-size: 1.1em;
@@ -270,11 +270,11 @@ h1 {
 	padding: 5px 2%;
 	font-size: 0.7em;
 	border: 1px solid #ccc;
+  border-radius: 10px;
   box-sizing: border-box;
 	display: inline-block;
-	background-color: #E7E7E7;
+	background-color: #f5f5f5;
 }
-
 .legend_answer {
 	width: 15px;
 	height: 15px;
@@ -322,7 +322,7 @@ h1 {
 
 .context_answer_page {
 	/* margin: 0; */
-	display: none;
+	/* display: none; */
 	background-color: #f5f5f5;
 	padding: 15px 20px;
 }
