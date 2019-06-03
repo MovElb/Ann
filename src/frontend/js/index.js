@@ -117,7 +117,7 @@ function show_answers(response) {
           "<p>"+
             "<a href=\"http://wikipedia.org/wiki/"+
               response["answers"][i]["title"] + "\" target=\"_blank\">" +
-            response["answers"][i]["title"]+
+            response["answers"][i]["title"].replace('_', ' ')+
             "</a></br>"+
             "Confidence score: <b>" +
         (100 * response["answers"][i]["has_ans_score"]).toString().slice(0, 4) +
