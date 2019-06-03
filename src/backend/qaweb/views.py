@@ -22,6 +22,7 @@ async def search_handler(request: web.Request) -> web.Response:
     saas: SaaSConnector = request.app['saas']
     if request_body.get('text'):
         texts = [request_body['text']]
+        title = [""]
     else:
         st = time.time()
         documents = await saas.get_documents(query)
@@ -29,11 +30,13 @@ async def search_handler(request: web.Request) -> web.Response:
 
         st = time.time()
         texts = []
+        title = []
         for doc in documents:
             try:
                 text = await doc.summary()
                 if len(text) > 1:
                     texts.append(text)
+                    title.append(doc.title)
             except Exception:
                 pass
         print('Time in wikipedia', time.time() - st, flush=True, file=sys.stdout)
@@ -55,7 +58,7 @@ async def search_handler(request: web.Request) -> web.Response:
     st = time.time()
     answers_packed = []
     for i in range(len(texts)):
-        answ = {'text': texts[i]}
+        answ = {'text': texts[i], 'title': title[i]}
         for key in answers.keys():
             answ[key] = answers[key][i]
         answers_packed.append(answ)
