@@ -290,6 +290,7 @@ h1 {
 	background-color: #F9E270;
 }
 .legend_panswer {
+	margin-left: 5%;
 	width: 15px;
 	height: 15px;
 	border: 1px solid #ccc;
@@ -298,6 +299,7 @@ h1 {
 	background-color: #54ee93;
 }
 .legend_cross {
+	margin-left: 5%;
 	width: 15px;
 	height: 15px;
 	border: 1px solid #ccc;
