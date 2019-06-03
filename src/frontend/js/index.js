@@ -116,7 +116,7 @@ function show_answers(response) {
         "<div class=\"answer_score\">"+
           "<p>"+
             "<a href=\"http://wikipedia.org/wiki/"+
-              response["answers"][i]["title"] + "\">" +
+              response["answers"][i]["title"] + "\" target=\"_blank\">" +
             response["answers"][i]["title"]+
             "</a></br>"+
             "Confidence score: <b>" +
