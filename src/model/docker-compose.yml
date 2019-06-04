@@ -12,7 +12,7 @@ services:
     runtime: nvidia
     ipc: host
     environment:
-     - NVIDIA_VISIBLE_DEVICES=all
+     - CUDA_VISIBLE_DEVICES=0
     volumes:
       - ./bertynet:/bertynet/bertynet
       - ./configs:/bertynet/configs

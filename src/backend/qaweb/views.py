@@ -21,22 +21,25 @@ async def search_handler(request: web.Request) -> web.Response:
 
     saas: SaaSConnector = request.app['saas']
     if request_body.get('text'):
-        documents = [request_body['text']]
+        texts = [request_body['text']]
+        title = [""]
     else:
         st = time.time()
         documents = await saas.get_documents(query)
         print('Time in Google', time.time() - st, flush=True, file=sys.stdout)
 
-    st = time.time()
-    texts = []
-    for doc in documents:
-        try:
-            text = await doc.summary()
-            if len(text) > 1:
-                texts.append(text)
-        except Exception:
-            pass
-    print('Time in wikipedia', time.time() - st, flush=True, file=sys.stdout)
+        st = time.time()
+        texts = []
+        title = []
+        for doc in documents:
+            try:
+                text = await doc.summary()
+                if len(text) > 1:
+                    texts.append(text)
+                    title.append(doc.title)
+            except Exception:
+                pass
+        print('Time in wikipedia', time.time() - st, flush=True, file=sys.stdout)
 
     st = time.time()
     prepro: CustomPrepro = request.app['prepro']
@@ -50,15 +53,19 @@ async def search_handler(request: web.Request) -> web.Response:
     answers: Dict = await net.get_answer(preprocessed_data)
     print('Time in Net', time.time() - st, flush=True, file=sys.stdout)
 
+    print(answers, flush=True, file=sys.stdout)
+
     st = time.time()
     answers_packed = []
     for i in range(len(texts)):
-        answ = {'text': texts[i]}
+        answ = {'text': texts[i], 'title': title[i]}
         for key in answers.keys():
             answ[key] = answers[key][i]
         answers_packed.append(answ)
+
+    srt_answ_top = sorted(answers_packed[:3], key=lambda a: a['has_ans_score'], reverse=True)
+    for i in range(len(srt_answ_top)):
+        answers_packed[i] = srt_answ_top[i]
     print('Time in packing', time.time() - st, flush=True, file=sys.stdout)
 
-    # answers_packed.sort(key=lambda a: a['score'], reverse=True)
-
-    return web.json_response({'answers': answers_packed}, dumps=ujson.dumps)
+    return web.json_response({'query': query, 'answers': answers_packed}, dumps=ujson.dumps)

@@ -4,10 +4,10 @@ app:
 
 saas:
   url: "https://www.googleapis.com/customsearch/v1?key={}&cx={}&q="
-  conn_timeout: 10
-  read_timeout: 10
+  conn_timeout: 100
+  read_timeout: 100
 
 net:
   url: "http://10.132.0.4/get_answer"
-  conn_timeout: 10
-  read_timeout: 10
+  conn_timeout: 100
+  read_timeout: 100
