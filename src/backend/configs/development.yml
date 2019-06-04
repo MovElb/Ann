@@ -13,6 +13,6 @@ net:
   read_timeout: 100
 
 redis:
-  host: "localhost"
+  host: "10.132.0.5"
   port: 26379
   master_name: "redismaster"

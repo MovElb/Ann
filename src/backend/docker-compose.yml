@@ -3,11 +3,11 @@ version: '2.4'
 services:
   qaweb:
     build: .
-    ports:
-      - 8080:8080
+#    ports:
+#      - 8080:8080
     command: supervisord -c /qaweb/configs/supervisord.ini
-    networks:
-      - backend
+#    networks:
+#      - backend
     environment:
       - PYTHONASYNCIODEBUG=0
       - GAPI_KEY=${GAPI_KEY}
@@ -16,6 +16,7 @@ services:
       - ./qaweb:/qaweb/qaweb
       - ./configs:/qaweb/configs
       - aiohttp-sockets:/var/lib/aiohttp
+    network_mode: host
 
   nginx:
     build: ./nginx/
@@ -32,25 +33,25 @@ services:
     depends_on:
       - qaweb
 
-#  master:
-#    image: redis:4.0-alpine
-#  slave:
-#    image: redis:4.0-alpine
-#    command: redis-server --slaveof redis-master 6379
-#    links:
-#      - master:redis-master
-#    volumes:
-#      - redis/.data:/data
-#  sentinel:
-#    build: redis/sentinel
-#    environment:
-#      - SENTINEL_DOWN_AFTER=5000
-#      - SENTINEL_FAILOVER=5000
-#    links:
-#      - master:redis-master
-#      - slave
-#    ports:
-#      - 26379:26379
+  master:
+    image: redis:4.0-alpine
+  slave:
+    image: redis:4.0-alpine
+    command: redis-server --slaveof redis-master 6379
+    links:
+      - master:redis-master
+    volumes:
+      - ./redis/.data:/data
+  sentinel:
+    build: redis/sentinel
+    environment:
+      - SENTINEL_DOWN_AFTER=5000
+      - SENTINEL_FAILOVER=5000
+    links:
+      - master:redis-master
+      - slave
+    ports:
+      - 26379:26379
 
 networks:
   backend:
