@@ -8,6 +8,7 @@ import ujson
 from typing import Any, List, Dict
 
 from aiohttp import web
+from aioredis import Redis
 
 
 class BaseConnector:
@@ -56,13 +57,15 @@ class RedisConnector:
         self._host = host
         self._port = port
         self._master_name = master_name
+        self._SUF_TEXT = '--TEXT'
+        self._SUF_PREPRO = '--PREPRO'
 
     async def connect(self):
         sentinel = await aioredis.create_sentinel([(self._host, self._port)])
-        self._master = sentinel.master_for(self._master_name)
+        self._master: Redis = sentinel.master_for(self._master_name)
 
-    async def get_text(selfs, title) -> str:
-        pass
+    async def get_text(self, title) -> str:
+        return await self._master.get(title + self._SUF_TEXT, encoding='utf-8')
 
     async def get_preprocessed(self, title):
         pass
