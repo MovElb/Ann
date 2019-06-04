@@ -157,9 +157,9 @@ function tag_answers(context, ans_begin, ans_end, pans_begin, pans_end) {
        context.slice(pans_end);
   } else if ((ans_begin === pans_begin) && (pans_end < ans_end)) {
     return context.slice(0, pans_begin) + "<mark class=\"mark_cross\">" +
-       context.slice(pans_begin, ans_end) + "</mark><mark class=\"mark_answer\">" +
-       context.slice(ans_end, pans_end) + "</mark>" +
-       context.slice(pans_end);
+       context.slice(pans_begin, pans_end) + "</mark><mark class=\"mark_answer\">" +
+       context.slice(pans_end, ans_end) + "</mark>" +
+       context.slice(ans_end);
   } else if ((ans_begin === pans_begin) && (ans_end === pans_end)) {
     return context.slice(0, pans_begin) + "<mark class=\"mark_cross\">" +
        context.slice(pans_begin, ans_end) + "</mark>" +
