@@ -67,8 +67,12 @@ class RedisConnector:
     async def get_text(self, title) -> str:
         return await self._master.get(title + self._SUF_TEXT, encoding='utf-8')
 
-    async def get_preprocessed(self, title):
-        pass
+    async def get_preprocessed(self, title) -> Dict[Any]:
+        plain = await self._master.get(title + self._SUF_PREPRO, encoding='utf-8')
+        return ujson.loads(plain)
+
+    async def dump(self, title, text, preprocessed_text):
+
 
 
 class NetConnector(BaseConnector):
