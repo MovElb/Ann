@@ -62,8 +62,10 @@ async def search_handler(request: web.Request) -> web.Response:
         for key in answers.keys():
             answ[key] = answers[key][i]
         answers_packed.append(answ)
-    print('Time in packing', time.time() - st, flush=True, file=sys.stdout)
 
-    # answers_packed.sort(key=lambda a: a['score'], reverse=True)
+    srt_answ_top = sorted(answers_packed[:3], key=lambda a: a['has_ans_score'], reverse=True)
+    for i in range(len(srt_answ_top)):
+        answers_packed[i] = srt_answ_top[i]
+    print('Time in packing', time.time() - st, flush=True, file=sys.stdout)
 
     return web.json_response({'query': query, 'answers': answers_packed}, dumps=ujson.dumps)
