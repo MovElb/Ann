@@ -11,3 +11,8 @@ net:
   url: "http://10.132.0.4/get_answer"
   conn_timeout: 100
   read_timeout: 100
+
+redis:
+  host: "10.132.0.5"
+  port: 26379
+  master_name: "redismaster"

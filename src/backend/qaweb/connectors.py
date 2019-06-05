@@ -1,12 +1,15 @@
 import os
+import sys
 import urllib.parse
 
 import aiohttp
+import aioredis
 import aiowiki
 import ujson
 from typing import Any, List, Dict
 
 from aiohttp import web
+from aioredis import Redis
 
 
 class BaseConnector:
@@ -32,7 +35,7 @@ class SaaSConnector(BaseConnector):
         self._url = self._url.format(os.environ['GAPI_KEY'], os.environ['GAPI_CX'])
         self._wiki = aiowiki.Wiki.wikipedia("en")
 
-    async def get_documents(self, query, limit: int = 10) -> List[aiowiki.Page]:
+    async def get_documents(self, query, limit: int = 10) -> List[str]:
         quote_encoded = urllib.parse.quote(query)
 
         async with self._sess.get(self._url + quote_encoded) as resp:
@@ -41,13 +44,46 @@ class SaaSConnector(BaseConnector):
             google_serp: Dict = await resp.json(loads=ujson.loads)
             urls = [item['link'] for item in google_serp.get('items', list())][:limit]
 
-            texts = []
-            for url in urls:
-                texts.append(self._wiki.get_page(url.split('/')[-1]))
-            return texts
+            titles = list(map(lambda u: u.split('/')[-1], urls))
+            return titles
+
+    def get_wikipage(self, title) -> aiowiki.Page:
+        return self._wiki.get_page(title)
 
     async def process_query(self, query) -> str:
         pass
+
+
+class RedisConnector:
+    def __init__(self, host: str, port: int, master_name: str):
+        self._host = host
+        self._port = port
+        self._master_name = master_name
+        self._SUF_TEXT = '--TEXT'
+        self._SUF_PREPRO = '--PREPRO'
+
+    async def connect(self):
+        print((self._host, self._port), self._master_name, flush=True, file=sys.stdout)
+        sentinel = await aioredis.create_sentinel([(self._host, self._port)])
+        self._master: Redis = sentinel.master_for(self._master_name)
+
+    async def get_text(self, title) -> str:
+        plain = await self._master.get(title + self._SUF_TEXT)
+        if plain:
+            return plain.decode('utf-8')
+        return None
+
+    async def get_preprocessed(self, title):
+        plain = await self._master.get(title + self._SUF_PREPRO)
+        if plain:
+            ujson.loads(plain.decode('utf-8'))
+        return None
+
+    async def dump_text(self, title, text):
+        await self._master.set(title + self._SUF_TEXT, text)
+
+    async def dump_prepro_text(self, title, prepro_text):
+        await self._master.set(title + self._SUF_PREPRO, ujson.dumps(prepro_text))
 
 
 class NetConnector(BaseConnector):
@@ -66,3 +102,4 @@ class NetConnector(BaseConnector):
 def setup_connectors(app: web.Application) -> None:
     app['saas'] = SaaSConnector(**app['config']['saas'])
     app['net'] = NetConnector(**app['config']['net'])
+    app['redis'] = RedisConnector(**app['config']['redis'])

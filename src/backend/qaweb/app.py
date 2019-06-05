@@ -7,9 +7,9 @@ from aiohttp import web
 import click
 
 from qaweb.custom_prepro import CustomPrepro
-from .connectors import setup_connectors
-from .schemas import ConfigSchema
-from .views import search_handler
+from qaweb.connectors import setup_connectors
+from qaweb.schemas import ConfigSchema
+from qaweb.views import search_handler
 
 uvloop.install()
 
