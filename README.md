@@ -1,12 +1,11 @@
-# Ann
-### Preprocessing
-You can run preprocessing by yourself.
-For that, download data from following links to the `data` folder and run `python3 preproc.py` with relevant arguments:
-* [SQuAD 2.0 Train Set](https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v2.0.json)
-* [SQuAD 2.0 Dev Set](https://rajpurkar.github.io/SQuAD-explorer/dataset/dev-v2.0.json)
-* [Glove Embeddings](http://nlp.stanford.edu/data/glove.840B.300d.zip)
+# Ann (Answering neural network)
 
-You can also download already preprocessed data:
-* [sample of data](https://www.dropbox.com/s/9l004zzw06l4pg6/sample.msgpack?dl=0)
-* [data](https://www.dropbox.com/s/qm56lh9makrwhyn/data.msgpack?dl=0)
-* [meta information](https://www.dropbox.com/s/1h74larxjhq48rz/meta.msgpack?dl=0)
+### Idea
+This project is purely educational and was developed during 3rd year of educatian at HSE. SQuAD allows researchers to train strong answering neural models performing even better than human. In this work we tried to combine two strong networks in one model and build cloud service which is aimed to answer user open-domain questions. 
+
+### Details
+We used pretrained [BERT-base model](https://arxiv.org/abs/1810.04805) as a feature extractor and [U-Net](https://arxiv.org/abs/1810.06638) as a main network with slight modifications made. We generate predictions for true answer span start/end, plausible answer span start/end and whether the question is answerable. Cloud service provides two options for user: either to provide with document where to search for answer or to use Wikipedia for searching. As for the second option, we use Google API for searching among Wikipedia pages for most relevant, followed by the model predictions generating. 
+
+Cloud application has microservice architecture. One distinct component uses `aitohttp` and `aiowiki` for downloading and parsing Wikipedia pages. Another component is a simple `Flask` server with GPU-enabled neural network set in inference mode.
+Finally, we used Redis for caching previously computed answers to improve service latency.
+
