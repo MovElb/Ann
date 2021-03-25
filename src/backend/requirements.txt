@@ -13,7 +13,7 @@ meld3==1.0.2
 multidict==4.5.2
 mypy==0.701
 mypy-extensions==0.4.1
-PyYAML==5.1
+PyYAML==5.4
 raven==6.10.0
 raven-aiohttp==0.7.0
 sentry-sdk==0.7.14
