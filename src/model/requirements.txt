@@ -1,7 +1,7 @@
 tqdm==4.26.0
 spacy==2.1.4
 pytorch_pretrained_bert==0.6.1
-numpy==1.16.2
+numpy==1.22.0
 Flask==1.0.3
 msgpack==0.6.1
 https://download.pytorch.org/whl/cu100/torch-1.1.0-cp36-cp36m-linux_x86_64.whl; sys_platform == "linux"
